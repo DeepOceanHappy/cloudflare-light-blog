@@ -31,21 +31,17 @@ export async function purgeCache(url) {
 }
 
 /**
- * 清除所有页面缓存
- */
-export async function purgeAllCache(urls) {
-  const cache = caches.default;
-  for (const url of urls) {
-    await cache.delete(new Request(url));
-  }
-}
-
-/**
  * 带缓存的响应包装器
  */
 export async function withCache(request, fetchFn, ttl = DEFAULT_TTL) {
   // 只缓存 GET 请求
   if (request.method !== 'GET') {
+    return fetchFn();
+  }
+
+  // 不缓存带查询参数的页面（标签、分类、分页等）
+  const url = new URL(request.url);
+  if (url.search) {
     return fetchFn();
   }
 

@@ -4,6 +4,46 @@
 
 ## 更新日志
 
+### v1.2.0 (2026-08-01)
+
+#### 新增功能
+- **表情包功能**：编辑器新增表情包插入，支持阿里巴巴矢量图标库 Font class 和 Symbol 双模式
+- **版权模块**：文章详情页底部新增版权说明模块，支持模板变量（文章链接、发布日期）
+- **广告模块**：前台侧边栏新增广告位，支持图片、链接及 Markdown 格式，可配置居左/居右
+- **分类统计**：后台分类管理新增每分类文章数量统计
+- **主题字体**：动森主题新增 LXGW WenKai 风格字体
+- **RSS 订阅**：新增 `/rss.xml` 接口，支持外部 RSS 阅读器订阅
+- **标签聚合 API**：新增 `/api/tags` 接口，服务端聚合标签数据，减少前端请求量
+- **页脚预设模板**：后台网站页脚新增预设模板按钮，包含建站时间和运行天数（北京时间 0 点自动更新）
+- **设置键名白名单**：后台保存设置时仅允许写入合法键名，防止非法数据注入
+
+#### SEO 优化
+- 新增 Twitter Card 元标签（文章页自动选择 summary / summary_large_image）
+- 首页新增 JSON-LD WebSite 结构化数据
+- 文章页新增 og:url 完整地址
+- Sitemap 新增分类页 URL
+- RSS Feed 支持 5 分钟 CDN 缓存
+- Sitemap 响应添加 Cache-Control 缓存头
+
+#### 性能优化
+- Settings 内存缓存（60 秒 TTL），避免每次请求查询数据库
+- 标签云改用服务端聚合 API，响应体积从数 KB 降至数百字节
+
+#### 问题修复
+- 修复友链同时支持 http 和 https 输入
+- 修复主题切换限定后台问题，切换主题同时适用前台和后台
+- 修复文章卡片摘要显示 Markdown 格式符号问题
+- 修复标签查询 SQL 运算符优先级错误，避免返回草稿和回收站文章
+- 修复图片删除接口缺少文件名校验
+- 修复恢复/彻底删除文章接口缺少 ID 参数校验
+- 修复数据库初始化注释步骤编号重复
+
+#### 其他变更
+- 为防止部署错误，取消 wrangler.toml 中绑定数据库 ID 和 R2 存储，需部署后在后台手动绑定
+- 新增主题目录结构及 DIY 主题模板，便于自行开发主题（建议直接对 diyThemes 进行开发）
+- 个人简介模块移除建站时间显示，建站时间通过页脚预设模板展示
+- 清理冗余代码（deriveHMACKey 统一导出、补充默认设置字段）
+
 ### v1.1.0 (2026-07-05)
 
 #### 新增功能
@@ -11,7 +51,7 @@
 - **模块位置开关**：个人简介和标签云模块支持居左/居右位置切换
 - **图标静态化**：后台管理、前台首页、文章详情页的图标统一改为静态资源（public/icon/），替换对应文件即可自定义图标
 - **图片删除增强**：文章管理中删除封面图片时增加二次确认弹框，可选择是否同时删除存储桶中的图片资源
-- **导入文章**：支持导入 WordPress XML 文件（WXR 格式），批量导入文章、分类、标签及状态信息
+- **导入文章**：支持导入 WordPress XML 文件（WXR 格式），批量导入文章、分类、标签及状态信息 ⚠️ 该功能未经充分测试，请先备份数据后再自行测试使用
 - **置顶文章**：在网站设置中配置置顶文章编号，置顶文章在首页首位展示并添加金色边框和置顶图标标识
 - **后台美化**：后台导航栏图标优化，选中项使用 navigate.png 指示器，管理后台标题和退出登录按钮分别添加 dashboard.png、logout.png 图标
 
@@ -53,19 +93,22 @@
 - ✅ 全站密码保护（可选、Cookie 24小时有效期、5次/1小时速率限制）
 - ✅ 搜索栏（实时搜索文章标题和标签）
 - ✅ 便签贴纸风格标签
+- ✅ 版权说明模块（文章详情页底部，支持模板变量）
+- ✅ 侧边栏广告模块（支持图片、链接、Markdown 格式）
 - ✅ 响应式布局（手机端 / 平板端 / 桌面端）
 - ✅ 文章置顶（在网站设置中配置置顶文章编号，置顶文章首位显示，带金色边框和📌置顶标识）
+- ✅ 主题切换（动森 / 蔚蓝 / 自定义）
 
 ### 后台管理
 - ✅ 文章管理（表格布局、分页、内联新建/编辑、封面图上传+外链、Markdown 编辑器工具栏、标签列展示）
-- ✅ 分类管理（表格布局、增删改）
+- ✅ 分类管理（表格布局、增删改、文章数量统计）
 - ✅ 回收站（表格布局、恢复/彻底删除）
 - ✅ 个人设置（头像、简介、建站时间、友链标题/内容、图标配置、模块位置开关）
 - ✅ 网站设置（标题、图标、主题、页脚、自定义JS、全站密码、CORS 来源、功能开关）
-- ✅ 主题切换（动物森林 / 海洋微风）
+- ✅ 主题切换（动森 / 蔚蓝 / 自定义）
 - ✅ 图片上传（支持上传 + 外链，限制 2MB，类型验证）
 - ✅ 图片删除二次确认（可选择是否删除存储桶资源）
-- ✅ Markdown 编辑器（标题、加粗、斜体、链接、图片、代码、列表、引用、分割线、折叠框）
+- ✅ Markdown 编辑器（标题、加粗、斜体、链接、图片、代码、列表、引用、分割线、折叠框、表情包）
 - ✅ 页面刷新保持当前导航页
 - ✅ 响应式布局（手机端 / 平板端 / 桌面端）
 - ✅ 文章导入（支持 WordPress XML 格式，批量导入文章、分类、标签）
@@ -81,6 +124,7 @@
 - ✅ 密码速率限制（全站密码 + 文章密码，5次/1小时）
 - ✅ XSS 防护（Markdown 内容转义、sanitizeMarkdown）
 - ✅ SQL 注入防护（参数化查询、表名白名单验证）
+- ✅ 设置键名白名单（后台保存设置时仅允许写入合法键名）
 - ✅ 文件上传限制（2MB、MIME 类型验证、文件名正则校验）
 - ✅ 错误信息隐藏（仅记录截断的错误摘要到服务器日志）
 - ✅ CORS 可配置来源（支持多域名逗号分隔，后台设置）
@@ -88,17 +132,21 @@
 - ✅ Cookie 安全属性（HttpOnly、SameSite=Lax、Max-Age）
 
 ### SEO
-- ✅ meta 标签（description、robots）
-- ✅ Open Graph 标签（og:title、og:description、og:image）
-- ✅ JSON-LD 结构化数据（BlogPosting）
+- ✅ meta 标签（description、robots、author）
+- ✅ Open Graph 标签（og:type、og:title、og:description、og:image、og:url、og:site_name）
+- ✅ Twitter Card（summary / summary_large_image 自动选择）
+- ✅ JSON-LD 结构化数据（文章页 BlogPosting、首页 WebSite）
 - ✅ canonical URL
-- ✅ sitemap.xml 自动生成
+- ✅ sitemap.xml 自动生成（含文章页 + 分类页）
+- ✅ RSS Feed（`/rss.xml`，最近 20 篇，5 分钟缓存）
 - ✅ robots.txt（后台可开关）
 - ✅ 图片懒加载（loading="lazy"）
 
 ### 性能
 - ✅ 数据库索引（status、created_at、slug、category）
-- ✅ API 缓存（文章列表 60s、分类 300s、统计 60s）
+- ✅ API 缓存（文章列表 60s、分类 300s、统计 60s、标签 60s、RSS 300s、Sitemap 300s）
+- ✅ Settings 内存缓存（60 秒 TTL，避免每次请求查库）
+- ✅ 标签云服务端聚合（`/api/tags`，减少前端请求量）
 - ✅ 前台页面缓存（Cache API，首页 5min）
 - ✅ R2 图片缓存（1年）
 - ✅ 冷启动优化（Promise 缓存避免重复初始化）
@@ -125,6 +173,11 @@ src/
 │   ├── auth.js            # 认证模块（HKDF 密钥派生、HMAC-SHA256、恒定时间比较、密码哈希）
 │   ├── cache.js           # Workers Cache API
 │   └── image.js           # 图片处理（R2 上传、2MB 限制、MIME 验证、文件名校验）
+├── themes/                # 主题目录（可自行扩展）
+│   ├── index.js           # 主题注册中心
+│   ├── animal-forest.js   # 动森主题（默认）
+│   ├── ocean-breeze.js    # 蔚蓝主题
+│   └── diy-themes.js      # 自定义主题（用户可修改，建议在此基础上开发）
 └── views/
     ├── frontend.js        # 前台首页（SEO、分页、搜索、响应式）
     ├── post.js            # 文章详情页（Markdown、代码高亮、灯箱、SEO、懒加载）
@@ -151,6 +204,80 @@ wrangler.toml              # Cloudflare 配置
 
 > 替换对应的图片文件即可自定义图标，无需修改代码。
 
+### 主题开发指南
+
+`src/themes/` 目录用于存放主题文件，支持用户自行开发和扩展主题。
+
+#### 现有主题
+
+| 主题变量名 | 主题名称 | 风格 |
+|------------|----------|------|
+| `animal-forest` | 动森 | 温馨自然（默认） |
+| `ocean-breeze` | 蔚蓝 | 清新海洋 |
+| `diy-themes` | 自定义 | 用户可自由修改（建议在此基础上开发新主题） |
+
+#### 开发新主题
+
+**1. 创建主题文件**
+
+在 `src/themes/` 目录创建新的 `.js` 文件，例如 `my-theme.js`：
+
+```javascript
+// 我的主题 - 简短描述
+export default {
+  name: '我的主题',           // 主题显示名称
+  headerBg: 'linear-gradient(180deg, #颜色1 0%, #颜色2 100%)',  // 顶部渐变背景
+  sidebarBg: '#颜色',         // 侧边栏背景
+  btnBg: '#颜色',             // 按钮背景
+  btnShadow: '#颜色',         // 按钮阴影
+  dangerBg: '#e05a5a',        // 危险按钮背景
+  dangerShadow: '#c94444',    // 危险按钮阴影
+  cardBg: '#颜色',            // 卡片背景
+  cardBorder: '#颜色',        // 卡片边框
+  bodyBg: '#颜色',            // 页面背景
+  textPrimary: '#颜色',       // 主要文字
+  textBody: '#颜色',          // 正文文字
+  textSecondary: '#颜色',     // 次要文字
+  inputBorder: '#颜色',       // 输入框边框
+  inputShadow: '#颜色'        // 输入框阴影
+};
+```
+
+**2. 注册主题**
+
+编辑 `src/themes/index.js`，导入并注册新主题：
+
+```javascript
+import myTheme from './my-theme.js';
+
+export const themes = {
+  // ...其他主题
+  'my-theme': myTheme  // 添加这行
+};
+```
+
+**3. 添加后台选项**
+
+编辑 `src/views/admin.js`，在主题选择区域添加选项：
+
+```html
+<label class="radio-item" style="margin:0">
+  <input type="radio" value="my-theme" v-model="settingsForm.site_theme" @change="applyTheme()">
+  <span class="radio-custom"></span>
+  <span class="radio-label">🎨 我的主题</span>
+</label>
+```
+
+同时在 `themes` 配置对象中添加对应的主题变量。
+
+**4. 部署生效**
+
+保存后重新部署即可在后台看到新主题选项。
+
+#### 自定义主题快速修改
+
+如果只想修改颜色，可直接编辑 `src/themes/diy-themes.js` 文件，无需额外注册步骤。
+
 ## 部署步骤
 
 ### 1. 获取项目代码（二选一）
@@ -175,40 +302,18 @@ git push -u origin main
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. 进入 **Workers & Pages** → **D1**
 3. 点击 **Create database**，名称输入 `blog-db`
-4. 复制 **Database ID**
+4. 记下数据库名称，后续绑定时需要选择
 
-### 3. 配置 D1 数据库绑定（三选一）
+### 3. 配置 D1 数据库绑定
 
-**方式一：修改 wrangler.toml（适合私有仓库）**
+`wrangler.toml` 已配置 D1 绑定，Cloudflare 会根据 `database_name` 自动查找对应数据库，无需手动绑定。
 
-编辑 `wrangler.toml`，将 `database_id` 替换为你的 D1 Database ID：
+如果部署时报错 `database not found`，说明你的账户下还没有 `blog-db` 数据库，需要先创建：
 
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "blog-db"
-database_id = "你的-D1-Database-ID"
-```
-
-**方式二：通过 Dashboard 绑定（推荐，无需修改代码）**
-
-1. 进入 Cloudflare Dashboard → **Workers & Pages** → 你的 Worker
-2. 点击 **Settings** → **Bindings** → **Add**
-3. 选择 **D1 Database**，变量名填 `DB`，选择你创建的 `blog-db` 数据库
-4. 保存后重新部署
-
-> 💡 Dashboard 绑定优先级高于 `wrangler.toml`，两者会自动合并。此方式无需在代码中写入 Database ID。
-
-**方式三：使用环境变量（仅限本地 Wrangler CLI 部署）**
-
-在 `wrangler.toml` 中使用 `database_id = "${DB_ID}"`，本地部署前设置环境变量：
-
-```bash
-export DB_ID="你的-D1-Database-ID"
-npx wrangler deploy
-```
-
-> ⚠️ 此方式仅适用于本地 CLI 部署，GitHub 自动部署不支持环境变量替换。
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
+2. 进入 **Workers & Pages** → **D1**
+3. 点击 **Create database**，名称输入 `blog-db`
+4. 重新部署即可
 
 ### 4. 创建 R2 存储桶（可选）
 
@@ -225,7 +330,9 @@ R2 存储桶用于存储文章封面图片等静态资源。
 
 1. 进入 **Workers & Pages** → **R2**
 2. 点击 **Create bucket**，名称输入 `blog-images`
-3. `wrangler.toml` 中已预配置 R2 绑定，无需额外修改
+3. 进入你的 Worker → **Settings** → **Bindings** → **Add**
+4. 选择 **R2 Bucket**，变量名填 `R2`，选择你创建的 `blog-images` 存储桶
+5. 保存后重新部署
 
 ### 5. 连接 Cloudflare Workers
 
@@ -275,6 +382,7 @@ git push
 | 前台首页 | `https://你的域名/` |
 | 后台管理 | `https://你的域名/admin/` |
 | 站点地图 | `https://你的域名/sitemap.xml` |
+| RSS 订阅 | `https://你的域名/rss.xml` |
 | robots.txt | `https://你的域名/robots.txt` |
 | favicon | `https://你的域名/favicon.ico` |
 | 健康检查 | `https://你的域名/api/health` |
@@ -305,7 +413,7 @@ git push
 | 网站标题 | 浏览器标题栏和侧边栏 | 我的博客 |
 | 网站副标题 | 首页描述文字 | 空 |
 | 网站图标 | 替换 `public/icon/favicon.ico` 文件即可更换 | favicon.ico |
-| 主题风格 | 动物森林 / 海洋微风 | 动物森林 |
+| 主题风格 | 动森 / 蔚蓝 / 自定义 | 动森 |
 | 网站页脚 | 支持 HTML | © 2026 我的博客 |
 | 自定义 JS | 注入到页面的自定义脚本 | 空 |
 | 全站密码 | 留空则不启用，访问任何页面需输入密码 | 空 |
@@ -329,8 +437,11 @@ git push
 | GET | `/api/settings` | 网站设置 |
 | GET | `/api/stats` | 统计信息（文章数、分类数、标签数、最新更新日期） |
 | GET | `/api/links` | 友链列表 |
+| GET | `/api/tags` | 标签列表（服务端聚合，按数量降序，最多 18 个） |
+| GET | `/api/related-posts?id=x&tags=a,b` | 相关文章（相同标签，随机 4 篇） |
 | GET | `/api/health` | 健康检查（数据库连接状态） |
-| GET | `/sitemap.xml` | 站点地图 |
+| GET | `/sitemap.xml` | 站点地图（含文章页 + 分类页） |
+| GET | `/rss.xml` | RSS 订阅（最近 20 篇，5 分钟缓存） |
 | POST | `/api/site-auth` | 全站密码认证（返回 HttpOnly Cookie） |
 | POST | `/api/post-auth` | 文章密码认证（返回 HttpOnly Cookie） |
 

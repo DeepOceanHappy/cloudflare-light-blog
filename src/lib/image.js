@@ -37,32 +37,24 @@ export async function handleImage(request, env, path) {
 }
 
 /**
- * 上传图片到 R2（优化：直接使用 ArrayBuffer，不经过 base64）
+ * 上传图片到 R2（仅处理编辑器粘贴的 data: URI）
  */
 export async function uploadImage(env, data, prefix) {
   try {
-    let arrayBuffer, contentType, ext;
-
-    if (typeof data === 'string' && data.startsWith('data:')) {
-      // base64 数据（来自编辑器粘贴）
-      const matches = data.match(/^data:([^;]+);base64,(.+)$/);
-      if (!matches) return data;
-
-      contentType = matches[1];
-      const binaryStr = atob(matches[2]);
-      arrayBuffer = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        arrayBuffer[i] = binaryStr.charCodeAt(i);
-      }
-      ext = contentType.split('/')[1] || 'jpg';
-    } else if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-      // 直接的 ArrayBuffer（来自文件上传）
-      arrayBuffer = data;
-      contentType = 'application/octet-stream';
-      ext = 'bin';
-    } else {
+    if (typeof data !== 'string' || !data.startsWith('data:')) {
       return data; // 无法处理，原样返回
     }
+
+    const matches = data.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) return data;
+
+    const contentType = matches[1];
+    const binaryStr = atob(matches[2]);
+    const arrayBuffer = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      arrayBuffer[i] = binaryStr.charCodeAt(i);
+    }
+    const ext = contentType.split('/')[1] || 'jpg';
 
     const filename = `${prefix}_${generateRandomFilename()}.${ext}`;
 
@@ -74,8 +66,7 @@ export async function uploadImage(env, data, prefix) {
     }
 
     // 无 R2 时回退到 base64（仅小图）
-    if (typeof data === 'string') return data;
-    return '';
+    return data;
   } catch (e) {
     console.error('[Image] 上传失败:', e);
     return typeof data === 'string' ? data : '';
@@ -94,7 +85,7 @@ export async function handleUpload(request, env) {
       return { error: '没有文件', status: 400 };
     }
 
-    // 文件大小限制（1MB）
+    // 文件大小限制（2MB）
     const MAX_SIZE = 2 * 1024 * 1024;
     const arrayBuffer = await file.arrayBuffer();
     if (arrayBuffer.byteLength > MAX_SIZE) {
@@ -107,7 +98,7 @@ export async function handleUpload(request, env) {
       return { error: '不支持的文件类型', status: 400 };
     }
 
-    const ext = ({ 'image/x-icon': 'ico', 'image/svg+xml': 'svg' })[file.type] || (file.type?.split('/')[1] || 'jpg').replace('+xml', '');
+    const ext = ({ 'image/svg+xml': 'svg' })[file.type] || (file.type?.split('/')[1] || 'jpg');
     const filename = `${generateRandomFilename()}.${ext}`;
 
     if (env.R2) {

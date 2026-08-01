@@ -9,23 +9,24 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = "./public"
 binding = "ASSETS"
-serve_directly = false
 
 # ============================================
-# D1 数据库绑定
+# D1 数据库绑定（变量名必须为 DB）
+# Cloudflare 会根据 database_name 自动查找对应的数据库
+# 如果报错 "database not found"，请先在 D1 面板创建名为 blog-db 的数据库
 # ============================================
 [[d1_databases]]
 binding = "DB"
 database_name = "blog-db"
-database_id = "a55bc271-25cb-4a47-a4aa-5dca0d176933"
-#database_id = "${DB_ID}"
 
 # ============================================
-# R2 存储绑定
+# R2 存储绑定（可选，如需图片上传功能）
+# Workers & Pages > 你的 Worker > Settings > Bindings > Add > R2 Bucket
+# 变量名填 R2，选择你创建的 blog-images 存储桶
 # ============================================
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "blog-images"
+# [[r2_buckets]]
+# binding = "R2"
+# bucket_name = "blog-images"
 
 # CORS 配置已迁移至后台网站设置中
 # [vars]

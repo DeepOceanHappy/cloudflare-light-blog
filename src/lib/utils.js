@@ -11,22 +11,7 @@ export function json(data, status = 200) {
 }
 
 /**
- * CSP 头（适度宽松，允许 CDN 和内联脚本/样式）
- */
-export const CSP_HEADER = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self';";
-
-/**
- * HTTP 安全头（API 响应使用）
- */
-export const SECURITY_HEADERS = {
-  'X-Content-Type-Options': 'nosniff',
-  'X-Frame-Options': 'SAMEORIGIN',
-  'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
-};
-
-/**
- * HTML 响应（带安全头，CSP 通过 meta 标签设置以避免阻塞 CDN）
+ * HTML 响应（带安全头）
  */
 export function html(content, status = 200) {
   return new Response(content, {
@@ -92,6 +77,18 @@ export function escapeHtml(str) {
 }
 
 /**
+ * 渲染广告内容（支持 HTML 与常用 Markdown 语法：带链接图片、图片、链接）
+ * HTML 内容原样透传；Markdown 转换顺序：带链接图片 → 图片 → 纯链接
+ */
+export function renderAdContent(content) {
+  if (!content) return '';
+  return content
+    .replace(/\[!\[([^\]]*)\]\(([^)\s]+)\)\]\(([^)\s]+)\)/g, '<a href="$3" target="_blank" rel="noopener"><img src="$2" alt="$1"></a>')
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1">')
+    .replace(/(^|[^!])\[([^\]]+)\]\(([^)\s]+)\)/g, '$1<a href="$3" target="_blank" rel="noopener">$2</a>');
+}
+
+/**
  * 获取 CORS 头（支持多域名，从请求头 Origin 匹配）
  * @param {Request} request - 请求对象
  * @param {string} allowedOrigins - 逗号分隔的允许来源，"*" 表示全部允许
@@ -122,4 +119,19 @@ export function handleOptions(request, allowedOrigins) {
     return new Response(null, { headers: getCorsHeaders(request, allowedOrigins) });
   }
   return null;
+}
+
+/**
+ * 使用 HKDF 派生 HMAC 密钥（用于 Cookie 签名验证）
+ * @param {string} password - 密码或密钥材料
+ * @param {string} info - HKDF 上下文信息
+ */
+export async function deriveHMACKey(password, info) {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'HKDF', false, ['deriveBits']);
+  const derivedBits = await crypto.subtle.deriveBits(
+    { name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('cloudflare-light-blog-cookie-v1'), info: encoder.encode(info) },
+    keyMaterial, 256
+  );
+  return crypto.subtle.importKey('raw', derivedBits, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }

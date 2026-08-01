@@ -10,8 +10,8 @@ export function getAdminHTML() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>博客管理后台</title>
   <link rel="icon" href="/icon/favicon.ico">
-  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js" crossorigin="anonymous"><\/script>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.27/vue.global.prod.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.7.2/axios.min.js" crossorigin="anonymous"><\/script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
@@ -286,6 +286,7 @@ export function getAdminHTML() {
           <a href="#" role="menuitem" :class="{active:currentPage==='posts'}" @click.prevent="currentPage='posts'" aria-label="文章管理"><span v-if="currentPage==='posts'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>文章管理</a>
           <a href="#" role="menuitem" :class="{active:currentPage==='category'}" @click.prevent="currentPage='category'" aria-label="分类管理"><span v-if="currentPage==='category'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>分类管理</a>
           <a href="#" role="menuitem" :class="{active:currentPage==='profile'}" @click.prevent="currentPage='profile'" aria-label="个人设置"><span v-if="currentPage==='profile'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>个人设置</a>
+          <a href="#" role="menuitem" :class="{active:currentPage==='appearance'}" @click.prevent="currentPage='appearance'" aria-label="外观布局"><span v-if="currentPage==='appearance'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>外观布局</a>
           <a href="#" role="menuitem" :class="{active:currentPage==='settings'}" @click.prevent="currentPage='settings'" aria-label="网站设置"><span v-if="currentPage==='settings'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>网站设置</a>
           <a href="#" role="menuitem" :class="{active:currentPage==='trash'}" @click.prevent="currentPage='trash'" aria-label="回收站"><span v-if="currentPage==='trash'" class="nav-icon"><img src="/icon/navigate.png" alt=""></span>回收站</a>
         </div>
@@ -372,6 +373,15 @@ export function getAdminHTML() {
                     <button type="button" @click="insertMd('hr')" style="padding:4px 10px;background:#f0e8d8;border:2px solid #c4b89e;border-radius:6px;cursor:pointer;font-size:12px;color:#725d42">—分割线</button>
                     <button type="button" @click="insertMd('details')" style="padding:4px 10px;background:#f0e8d8;border:2px solid #c4b89e;border-radius:6px;cursor:pointer;font-size:12px;color:#725d42">▼折叠</button>
                   </div>
+                  <div style="background:#faf8f2;border:2px solid #e8e0cc;border-radius:12px;padding:12px;margin-bottom:8px;max-height:200px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px">
+                    <div v-if="!settingsForm.iconfont_css" style="color:#9f927d;font-size:13px;padding:8px">未配置表情包链接，请在「网站设置」中配置并保存</div>
+                    <div v-else-if="emojiLoading" style="color:#9f927d;font-size:13px;padding:8px">加载中...</div>
+                    <div v-else-if="iconList.length === 0" style="color:#9f927d;font-size:13px;padding:8px">未找到图标，请检查链接是否正确</div>
+                    <div v-for="icon in iconList" :key="icon.cls" @click="insertEmoji(icon)" style="cursor:pointer;padding:6px;border-radius:8px;transition:background 0.2s" @mouseenter="$event.currentTarget.style.background='#e8e0cc'" @mouseleave="$event.currentTarget.style.background='transparent'">
+                      <svg v-if="icon.type === 'svg'" aria-hidden="true" style="width:24px;height:24px;fill:currentColor;overflow:hidden"><use :xlink:href="'#' + icon.cls"></use></svg>
+                      <i v-else :class="icon.cls" style="font-size:24px"></i>
+                    </div>
+                  </div>
                   <textarea v-model="form.content" style="flex:1;min-height:400px"></textarea>
                 </div>
                 <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:auto;padding-top:12px"><button class="btn" @click="savePost">保存</button><button class="btn btn-cancel" @click="cancelNewPost">取消</button></div>
@@ -410,7 +420,7 @@ export function getAdminHTML() {
                       <span class="radio-custom"></span>
                       <span class="radio-label">有</span>
                     </label>
-                    <input v-if="form.passwordType === 'has'" v-model="form.password" type="password" placeholder="请输入密码" style="flex:1">
+                    <input v-if="form.passwordType === 'has'" v-model="form.password" type="password" :placeholder="form.hadPassword ? '已设置，留空保持不变' : '请输入密码'" style="flex:1">
                   </div>
                 </div>
                 <div class="form-group">
@@ -436,14 +446,14 @@ export function getAdminHTML() {
         <div v-if="currentPage==='category'">
           <div class="page-header"><h2>分类管理</h2></div>
           <button class="btn" @click="editingCategory='new';categoryForm={name:'',slug:'',description:''}" style="margin-bottom:16px">添加分类</button>
-          <div v-if="editingCategory==='new'" class="card w-33">
+          <div v-if="editingCategory==='new'" class="card w-50">
             <div class="form-row">
               <div class="form-group"><label>英文ID</label><input v-model="categoryForm.slug"></div>
               <div class="form-group"><label>中文名称</label><input v-model="categoryForm.name"></div>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn" @click="saveCategory">保存</button><button class="btn btn-cancel" @click="editingCategory=null">取消</button></div>
           </div>
-          <div class="w-33">
+          <div class="w-50">
             <div class="card" style="padding:0;overflow:hidden">
               <table style="width:100%;border-collapse:collapse">
                 <thead>
@@ -452,6 +462,7 @@ export function getAdminHTML() {
                     <th style="padding:14px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:70px;white-space:nowrap">编辑</th>
                     <th style="padding:14px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px">英文ID</th>
                     <th style="padding:14px 16px;text-align:left;color:#794f27;font-weight:700;font-size:15px">中文名称</th>
+                    <th style="padding:14px 16px;text-align:center;color:#794f27;font-weight:700;font-size:15px;width:90px;white-space:nowrap">文章数</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -461,9 +472,10 @@ export function getAdminHTML() {
                       <td style="padding:14px 16px;text-align:center;white-space:nowrap"><button class="edit" @click="editingCategory===cat.id?editingCategory=null:editCategory(cat)" style="padding:5px 14px;border:none;border-radius:50px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap">{{editingCategory===cat.id?'收起':'编辑'}}</button></td>
                       <td style="padding:14px 16px;color:#9f927d;font-size:15px">/{{cat.slug}}</td>
                       <td style="padding:14px 16px;color:#794f27;font-weight:600;font-size:16px">{{cat.name}}</td>
+                      <td style="padding:14px 16px;text-align:center;color:#19c8b9;font-weight:700;font-size:15px">{{posts.filter(p => p.category === cat.name).length}}</td>
                     </tr>
                     <tr v-if="editingCategory===cat.id">
-                      <td colspan="4" style="padding:16px;background:#faf8f2;border-top:2px solid #e8e0cc">
+                      <td colspan="5" style="padding:16px;background:#faf8f2;border-top:2px solid #e8e0cc">
                         <div class="form-row">
                           <div class="form-group"><label>英文ID</label><input v-model="categoryForm.slug"></div>
                           <div class="form-group"><label>中文名称</label><input v-model="categoryForm.name"></div>
@@ -509,151 +521,113 @@ export function getAdminHTML() {
         </div>
         <div v-if="currentPage==='settings'">
           <div class="page-header"><h2>网站设置</h2></div>
-          <button class="btn" @click="saveSettings" style="margin-bottom:16px">保存设置</button>
+          <button class="btn" @click="saveSiteSettings" style="margin-bottom:16px">保存设置</button>
+          <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
+          <div class="card">
+            <div class="form-group"><label>网站标题</label><input v-model="settingsForm.site_name"></div>
+            <div class="form-group"><label>网站副标题</label><input v-model="settingsForm.site_description"></div>
+            <div class="form-group">
+              <label>网站图标</label>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                  <img src="/icon/favicon.ico" style="width:32px;height:32px;object-fit:cover">
+                </div>
+                <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/favicon.ico</code> 文件即可更换</span>
+              </div>
+            </div>
+            <div class="form-group"><label>网站页脚（支持HTML）</label><div style="display:flex;gap:8px;margin-bottom:8px"><button @click="applyFooterTemplate" style="padding:6px 12px;background:#19c8b9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.85em">应用预设模板</button></div><textarea v-model="settingsForm.site_footer" rows="3"></textarea></div>
+            <div class="form-group"><label>版权说明（支持HTML）</label><div style="display:flex;gap:8px;margin-bottom:8px"><button @click="applyCopyrightTemplate" style="padding:6px 12px;background:#19c8b9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:0.85em">应用预设模板</button></div><textarea v-model="settingsForm.copyright_notice" rows="4" placeholder="例如：© 2026 我的博客. All rights reserved."></textarea></div>
+            <div class="form-group"><label>表情包引入（仅支持阿里巴巴矢量图标库）</label><input v-model="settingsForm.iconfont_css" placeholder="Font class(.css) 或 Symbol(.js) 格式，如：//at.alicdn.com/t/c/font_xxx.js" style="width:100%"><p style="font-size:12px;color:#9f927d;margin-top:6px">支持 iconfont.cn 的 Font class（单色，颜色跟随文字）与 Symbol（多色，保留图库原始配色，推荐）格式，配置后可在编辑器中插入表情图标</p></div>
+            <div class="form-group"><label>自定义JS（输入完整script标签）</label><textarea v-model="settingsForm.custom_js" rows="4" placeholder="请输入完整的 script 标签，例如：&lt;script src=&quot;https://cdn.jsdelivr.net/npm/xxx.js&quot;&gt;&lt;/script&gt;"></textarea></div>
+            <div class="form-group">
+              <label>全站密码</label>
+              <div style="display:flex;align-items:center;gap:12px">
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="" v-model="settingsForm.sitePasswordType">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">无</span>
+                </label>
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="has" v-model="settingsForm.sitePasswordType">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">有</span>
+                </label>
+                <input v-if="settingsForm.sitePasswordType === 'has'" v-model="settingsForm.site_password" type="password" :placeholder="sitePasswordSet ? '已设置，留空保持不变' : '请输入全站密码'" style="flex:1">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>是否允许搜索引擎爬取</label>
+              <div style="display:flex;align-items:center;gap:12px">
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="1" v-model="settingsForm.allow_robots">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">是</span>
+                </label>
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="0" v-model="settingsForm.allow_robots">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">否</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>是否启用压缩</label>
+              <div style="display:flex;align-items:center;gap:12px">
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="1" v-model="settingsForm.enable_compression">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">是</span>
+                </label>
+                <label class="radio-item" style="margin:0">
+                  <input type="radio" value="0" v-model="settingsForm.enable_compression">
+                  <span class="radio-custom"></span>
+                  <span class="radio-label">否</span>
+                </label>
+              </div>
+            </div>
+            <div class="form-group"><label>CORS 允许来源（多域名用逗号分隔，* 表示全部）</label><input v-model="settingsForm.allowed_origins" placeholder="*"></div>
+          </div>
+          </div>
+        </div>
+        <div v-if="currentPage==='appearance'">
+          <div class="page-header"><h2>外观布局</h2></div>
+          <button class="btn" @click="saveAppearanceSettings" style="margin-bottom:16px">保存设置</button>
           <div style="display:flex;gap:20px;flex-wrap:wrap">
-            <!-- 第一栏：网站设置 -->
             <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
               <div class="card">
-                <h3 style="color:#794f27;font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e8e0cc">基本设置</h3>
-                <div class="form-group"><label>网站标题</label><input v-model="settingsForm.site_name"></div>
-                <div class="form-group"><label>网站副标题</label><input v-model="settingsForm.site_description"></div>
-                <div class="form-group">
-                  <label>网站图标</label>
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
-                      <img src="/icon/favicon.ico" style="width:32px;height:32px;object-fit:cover">
-                    </div>
-                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/favicon.ico</code> 文件即可更换</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>置顶文章（输入编号）</label>
-                  <div style="display:flex;align-items:center;gap:12px">
-                    <label class="radio-item" style="margin:0">
-                      <input type="radio" value="" v-model="settingsForm.pinnedType">
-                      <span class="radio-custom"></span>
-                      <span class="radio-label">无</span>
-                    </label>
-                    <label class="radio-item" style="margin:0">
-                      <input type="radio" value="has" v-model="settingsForm.pinnedType">
-                      <span class="radio-custom"></span>
-                      <span class="radio-label">有</span>
-                    </label>
-                    <input v-if="settingsForm.pinnedType === 'has'" v-model="settingsForm.pinned_post_id" type="number" min="0" step="1" placeholder="输入文章编号" style="flex:1" @input="settingsForm.pinned_post_id = settingsForm.pinned_post_id.replace(/[^0-9]/g, '')">
-                  </div>
-                </div>
                 <div class="form-group">
                   <label>主题风格</label>
-                  <div style="display:flex;align-items:center;gap:12px">
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                     <label class="radio-item" style="margin:0">
                       <input type="radio" value="animal-forest" v-model="settingsForm.site_theme" @change="applyTheme()">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">🌲 动物森林</span>
+                      <span class="radio-label">🌲 动森</span>
                     </label>
                     <label class="radio-item" style="margin:0">
                       <input type="radio" value="ocean-breeze" v-model="settingsForm.site_theme" @change="applyTheme()">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">🌊 海洋微风</span>
+                      <span class="radio-label">🌊 蔚蓝</span>
+                    </label>
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="diy-themes" v-model="settingsForm.site_theme" @change="applyTheme()">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">🎨 自定义</span>
                     </label>
                   </div>
                 </div>
-                <div class="form-group"><label>网站页脚（HTML）</label><textarea v-model="settingsForm.site_footer" rows="3"></textarea></div>
-                <div class="form-group"><label>自定义JS</label><textarea v-model="settingsForm.custom_js" rows="4" placeholder="请输入完整的 <script>...</script> 标签，例如：&#10;<script src=&quot;https://cdn.jsdelivr.net/npm/xxx.js&quot;></script>"></textarea></div>
-              </div>
-            </div>
-            <!-- 第二栏：安全与优化 -->
-            <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
-              <div class="card">
-                <h3 style="color:#794f27;font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e8e0cc">安全与优化</h3>
-                <div class="form-group"><label>全站密码（留空则不启用）</label><input v-model="settingsForm.site_password" type="password" placeholder="留空则公开访问"></div>
-                <div class="form-group"><label>CORS 允许来源（多域名用逗号分隔，* 表示全部）</label><input v-model="settingsForm.allowed_origins" placeholder="*"></div>
                 <div class="form-group">
-                  <label>是否允许搜索引擎爬取</label>
+                  <label>个人简介位置</label>
                   <div style="display:flex;align-items:center;gap:12px">
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="1" v-model="settingsForm.allow_robots">
+                      <input type="radio" value="left" v-model="settingsForm.profile_position">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">是</span>
+                      <span class="radio-label">居左</span>
                     </label>
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="0" v-model="settingsForm.allow_robots">
+                      <input type="radio" value="right" v-model="settingsForm.profile_position">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">否</span>
+                      <span class="radio-label">居右</span>
                     </label>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>是否启用压缩</label>
-                  <div style="display:flex;align-items:center;gap:12px">
-                    <label class="radio-item" style="margin:0">
-                      <input type="radio" value="1" v-model="settingsForm.enable_compression">
-                      <span class="radio-custom"></span>
-                      <span class="radio-label">是</span>
-                    </label>
-                    <label class="radio-item" style="margin:0">
-                      <input type="radio" value="0" v-model="settingsForm.enable_compression">
-                      <span class="radio-custom"></span>
-                      <span class="radio-label">否</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div v-if="currentPage==='profile'">
-          <div class="page-header"><h2>个人设置</h2></div>
-          <button class="btn" @click="saveSettings" style="margin-bottom:16px">保存设置</button>
-          <div style="display:flex;gap:20px;flex-wrap:wrap">
-            <!-- 第一栏：个人设置 -->
-            <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
-              <div class="card">
-                <h3 style="color:#794f27;font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e8e0cc">个人信息</h3>
-                <div class="form-group"><label>个人名称</label><input v-model="settingsForm.site_author"></div>
-                <div class="form-group">
-                  <label>个人头像</label>
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
-                      <img src="/icon/profile.png" style="width:32px;height:32px;object-fit:cover">
-                    </div>
-                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/profile.png</code> 文件即可更换</span>
-                  </div>
-                </div>
-                <div class="form-group"><label>个人简介</label><textarea v-model="settingsForm.site_bio" rows="3"></textarea></div>
-                <div class="form-group"><label>建站时间</label><input type="date" v-model="settingsForm.site_created_at"></div>
-                <div class="form-group"><label>友链标题</label><input v-model="settingsForm.links_title" placeholder="友链"></div>
-                <div class="form-group"><label>友链内容（名称,地址 每行一个）</label><textarea v-model="settingsForm.site_links" rows="4"></textarea></div>
-              </div>
-            </div>
-            <!-- 第二栏：其他设置 -->
-            <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
-              <div class="card">
-                <h3 style="color:#794f27;font-size:18px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #e8e0cc">模块与图标</h3>
-                <div class="form-group">
-                  <label>分类标题图标</label>
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
-                      <img src="/icon/category.png" style="width:32px;height:32px;object-fit:cover">
-                    </div>
-                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/category.png</code> 文件即可更换</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>友链标题图标</label>
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
-                      <img src="/icon/friend-links.png" style="width:32px;height:32px;object-fit:cover">
-                    </div>
-                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/friend-links.png</code> 文件即可更换</span>
-                  </div>
-                </div>
-                <div class="form-group">
-                  <label>置顶文章图标</label>
-                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
-                      <img src="/icon/pin-post.png" style="width:32px;height:32px;object-fit:cover">
-                    </div>
-                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/pin-post.png</code> 文件即可更换</span>
                   </div>
                 </div>
                 <div class="form-group">
@@ -687,20 +661,88 @@ export function getAdminHTML() {
                   </div>
                 </div>
                 <div class="form-group">
-                  <label>个人简介位置</label>
+                  <label>分类标题图标</label>
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                      <img src="/icon/category.png" style="width:32px;height:32px;object-fit:cover">
+                    </div>
+                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/category.png</code> 文件即可更换</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>置顶文章（输入编号）</label>
                   <div style="display:flex;align-items:center;gap:12px">
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="left" v-model="settingsForm.profile_position">
+                      <input type="radio" value="" v-model="settingsForm.pinnedType">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">居左</span>
+                      <span class="radio-label">无</span>
                     </label>
                     <label class="radio-item" style="margin:0">
-                      <input type="radio" value="right" v-model="settingsForm.profile_position">
+                      <input type="radio" value="has" v-model="settingsForm.pinnedType">
                       <span class="radio-custom"></span>
-                      <span class="radio-label">居右</span>
+                      <span class="radio-label">有</span>
+                    </label>
+                    <input v-if="settingsForm.pinnedType === 'has'" v-model="settingsForm.pinned_post_id" type="number" min="0" step="1" placeholder="输入文章编号" style="flex:1" @input="settingsForm.pinned_post_id = settingsForm.pinned_post_id.replace(/[^0-9]/g, '')">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>置顶文章图标</label>
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                      <img src="/icon/pin-post.png" style="width:32px;height:32px;object-fit:cover">
+                    </div>
+                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/pin-post.png</code> 文件即可更换</span>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>广告位置</label>
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="left" v-model="settingsForm.ad_position">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">左侧栏</span>
+                    </label>
+                    <label class="radio-item" style="margin:0">
+                      <input type="radio" value="right" v-model="settingsForm.ad_position">
+                      <span class="radio-custom"></span>
+                      <span class="radio-label">右侧栏</span>
                     </label>
                   </div>
                 </div>
+                <div class="form-group"><label>广告内容（支持 HTML 和 Markdown）</label><textarea v-model="settingsForm.ad_content" rows="4" placeholder="HTML 示例：&#10;<a href='https://example.com'><img src='广告图片链接'></a>&#10;Markdown 示例：&#10;[![广告](广告图片链接)](https://example.com)"></textarea><p style="font-size:12px;color:#9f927d;margin-top:6px">广告图片使用1:1比例</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="currentPage==='profile'">
+          <div class="page-header"><h2>个人设置</h2></div>
+          <button class="btn" @click="saveProfileSettings" style="margin-bottom:16px">保存设置</button>
+          <div style="display:flex;gap:20px;flex-wrap:wrap">
+            <div style="flex:0 0 33.33%;max-width:33.33%;min-width:300px">
+              <div class="card">
+                <div class="form-group"><label>个人名称</label><input v-model="settingsForm.site_author"></div>
+                <div class="form-group">
+                  <label>个人头像</label>
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                      <img src="/icon/profile.png" style="width:32px;height:32px;object-fit:cover">
+                    </div>
+                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/profile.png</code> 文件即可更换</span>
+                  </div>
+                </div>
+                <div class="form-group"><label>个人简介</label><textarea v-model="settingsForm.site_bio" rows="3"></textarea></div>
+                <div class="form-group"><label>建站时间</label><input type="date" v-model="settingsForm.site_created_at"></div>
+                <div class="form-group"><label>友链标题</label><input v-model="settingsForm.links_title" placeholder="友链"></div>
+                <div class="form-group">
+                  <label>友链标题图标</label>
+                  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                    <div style="width:36px;height:36px;border:2px solid #e8e0cc;border-radius:8px;background:#f0e8d8;display:flex;align-items:center;justify-content:center;overflow:hidden">
+                      <img src="/icon/friend-links.png" style="width:32px;height:32px;object-fit:cover">
+                    </div>
+                    <span style="color:#9f927d;font-size:13px">替换 <code style="background:#f0e8d8;padding:2px 6px;border-radius:4px;font-size:12px">public/icon/friend-links.png</code> 文件即可更换</span>
+                  </div>
+                </div>
+                <div class="form-group"><label>友链内容（名称,地址 每行一个）</label><textarea v-model="settingsForm.site_links" rows="4" placeholder="格式示例：&#10;Google,https://google.com&#10;GitHub,https://github.com&#10;示例站点,http://example.com&#10;&#10;支持 http:// 和 https:// 开头的网址"></textarea></div>
               </div>
             </div>
           </div>
@@ -748,7 +790,6 @@ export function getAdminHTML() {
       <div v-if="toast" class="toast">{{toast}}</div>
     </div>
   </div>
-  </div>
   <script>
     const { createApp, ref, onMounted, watch } = Vue;
     createApp({
@@ -758,16 +799,18 @@ export function getAdminHTML() {
         const password = ref('');
         const posts = ref([]);
         const editingId = ref(null);
-        const form = ref({ title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] });
+        const form = ref({ title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', hadPassword: false, published_at: new Date().toISOString().split('T')[0] });
         const coverPreview = ref('');
         const toast = ref('');
         const categories = ref([]);
         const currentPage = ref('posts');
-        const settingsForm = ref({ site_name: '', site_description: '', site_bio: '', site_links: '', site_author: '', site_footer: '', custom_js: '', site_theme: 'animal-forest', enable_tag_cloud: '1', profile_position: 'left', tag_cloud_position: 'left', pinned_post_id: '', pinnedType: '' });
+        const settingsForm = ref({ site_name: '', site_description: '', site_bio: '', site_links: '', site_author: '', site_footer: '', custom_js: '', iconfont_css: '', site_theme: 'animal-forest', enable_tag_cloud: '1', profile_position: 'left', tag_cloud_position: 'left', pinned_post_id: '', pinnedType: '', copyright_notice: '', ad_content: '', ad_position: 'left', site_password: '', sitePasswordType: '' });
+        // 全站密码是否已设置（哈希不回传，仅用标记区分“保持不变”与“首次设置”）
+        const sitePasswordSet = ref(false);
         const categoryForm = ref({ name: '', slug: '', description: '' });
         const editingCategory = ref(null);
         const trashPosts = ref([]);
-        const confirmModal = ref({ show: false, title: '', message: '', onConfirm: null });
+        const confirmModal = ref({ show: false, title: '', message: '', checkbox: false, checkboxLabel: '', checkboxValue: true, onConfirm: null, onCancel: null });
         // 导入相关状态
         const showImportModal = ref(false);
         const importFileName = ref('');
@@ -776,6 +819,10 @@ export function getAdminHTML() {
         const importResult = ref(null);
         // 置顶相关状态
         const currentPinnedId = ref('');
+        // 表情包相关状态
+        const iconList = ref([]);
+        const emojiLoading = ref(false);
+        const loadedIconfontUrl = ref('');
         const check = () => { const t = localStorage.getItem('token'); if (t) { logged.value = true; currentPage.value = localStorage.getItem('adminPage') || 'posts'; loadPosts(); loadCategories(); loadSettings(); loadTrash(); } };
         const api = (url, o = {}) => {
           o.headers = o.headers || {};
@@ -792,7 +839,7 @@ export function getAdminHTML() {
         const logout = () => { localStorage.removeItem('token'); logged.value = false; };
         const loadPosts = async () => { try { const r = await api('/api/admin/posts'); posts.value = r.data; } catch (e) { showToast('加载文章失败'); } };
         const loadCategories = async () => { try { const r = await api('/api/categories'); categories.value = r.data; } catch (e) { showToast('加载分类失败'); } };
-        const loadSettings = async () => { try { const r = await api('/api/settings'); const pinnedId = r.data.pinned_post_id || ''; settingsForm.value = { site_name: r.data.site_name || '', site_description: r.data.site_description || '', site_bio: r.data.site_bio || '', site_links: r.data.site_links || '', site_author: r.data.site_author || '', site_footer: r.data.site_footer || '', custom_js: r.data.custom_js || '', site_theme: r.data.site_theme || 'animal-forest', allow_robots: r.data.allow_robots || '1', enable_compression: r.data.enable_compression || '1', links_title: r.data.links_title || '友链', site_created_at: r.data.site_created_at || '2020-02-02', site_password: r.data.site_password || '', allowed_origins: r.data.allowed_origins || '*', enable_tag_cloud: r.data.enable_tag_cloud || '1', profile_position: r.data.profile_position || 'left', tag_cloud_position: r.data.tag_cloud_position || 'left', pinned_post_id: pinnedId, pinnedType: pinnedId ? 'has' : '' }; currentPinnedId.value = pinnedId; applyTheme(); } catch (e) { showToast('加载设置失败'); } };
+        const loadSettings = async () => { try { const r = await api('/api/admin/settings'); const pinnedId = r.data.pinned_post_id || ''; sitePasswordSet.value = r.data.site_password_set === '1'; settingsForm.value = { site_name: r.data.site_name || '', site_description: r.data.site_description || '', site_bio: r.data.site_bio || '', site_links: r.data.site_links || '', site_author: r.data.site_author || '', site_footer: r.data.site_footer || '', custom_js: r.data.custom_js || '', iconfont_css: r.data.iconfont_css || '', site_theme: r.data.site_theme || 'animal-forest', allow_robots: r.data.allow_robots || '1', enable_compression: r.data.enable_compression || '1', links_title: r.data.links_title || '友链', site_created_at: r.data.site_created_at || '2020-02-02', site_password: '', sitePasswordType: sitePasswordSet.value ? 'has' : '', allowed_origins: r.data.allowed_origins || '*', enable_tag_cloud: r.data.enable_tag_cloud || '1', profile_position: r.data.profile_position || 'left', tag_cloud_position: r.data.tag_cloud_position || 'left', pinned_post_id: pinnedId, pinnedType: pinnedId ? 'has' : '', copyright_notice: r.data.copyright_notice || '', ad_content: r.data.ad_content || '', ad_position: r.data.ad_position || 'left' }; currentPinnedId.value = pinnedId; applyTheme(); loadEmojiOnInit(); } catch (e) { showToast('加载设置失败'); } };
         const loadTrash = async () => { try { const r = await api('/api/admin/trash'); trashPosts.value = r.data; } catch (e) { showToast('加载回收站失败'); } };
         const showToast = (m) => { toast.value = m; setTimeout(() => toast.value = '', 2000); };
         const showConfirm = (t, m, options = {}) => new Promise(r => {
@@ -809,19 +856,40 @@ export function getAdminHTML() {
         });
         const postPage = ref(1);
         const postPageSize = 10;
-        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', published_at: new Date().toISOString().split('T')[0] }; coverPreview.value = ''; };
+        const openAdd = () => { editingId.value = 'new'; form.value = { title: '', content: '', category: '', tags: '', status: 'draft', cover_image: '', password: '', passwordType: '', hadPassword: false, published_at: new Date().toISOString().split('T')[0] }; coverPreview.value = ''; };
         const cancelNewPost = async () => { const { confirmed } = await showConfirm('确认取消', '未保存的内容将丢失'); if (confirmed) { editingId.value = null; } };
-        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, cover_image: p.cover_image || '', password: p.password || '', passwordType: p.password ? 'has' : '', published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; coverPreview.value = p.cover_image || ''; } };
-        const savePost = async () => { if (form.value.passwordType === 'has' && !form.value.password) { alert('请输入文章密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; if (postData.passwordType !== 'has') { postData.password = ''; } delete postData.passwordType; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败'); } };
+        const toggleEdit = (p) => { if (editingId.value === p.id) { editingId.value = null; } else { editingId.value = p.id; form.value = { title: p.title, content: p.content, category: p.category, tags: p.tags, status: p.status, cover_image: p.cover_image || '', password: '', passwordType: p.has_password ? 'has' : '', hadPassword: !!p.has_password, published_at: p.published_at ? p.published_at.split('T')[0] : new Date().toISOString().split('T')[0] }; coverPreview.value = p.cover_image || ''; } };
+        const savePost = async () => { if (form.value.passwordType === 'has' && !form.value.password && !form.value.hadPassword) { alert('请输入文章密码'); return; } const { confirmed } = await showConfirm('确认保存', '确定保存？'); if (!confirmed) return; try { const postData = { ...form.value }; if (postData.passwordType !== 'has') { postData.password = ''; } else if (!postData.password) { delete postData.password; } delete postData.passwordType; delete postData.hadPassword; if (editingId.value === 'new') { await api('/api/admin/post', { method: 'POST', data: postData }); } else { await api('/api/admin/post?id=' + editingId.value, { method: 'PUT', data: postData }); } editingId.value = null; loadPosts(); showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deletePost = async (id) => { const { confirmed } = await showConfirm('确认删除', '移到回收站？'); if (!confirmed) return; try { await api('/api/admin/post?id=' + id, { method: 'DELETE' }); loadPosts(); loadTrash(); showToast('已移到回收站'); } catch (e) { showToast('删除失败'); } };
         const editCategory = (c) => { editingCategory.value = c.id; categoryForm.value = { name: c.name, slug: c.slug, description: c.description || '' }; };
         const saveCategory = async () => { if (!categoryForm.value.name || !categoryForm.value.slug) { alert('请填写'); return; } const { confirmed } = await showConfirm('确认保存', '确定？'); if (!confirmed) return; try { const d = { ...categoryForm.value }; if (editingCategory.value && editingCategory.value !== 'new') d.id = editingCategory.value; await api('/api/category', { method: 'POST', data: d }); loadCategories(); editingCategory.value = null; categoryForm.value = { name: '', slug: '', description: '' }; showToast('保存成功'); } catch (e) { alert('保存失败'); } };
         const deleteCategory = async (id) => { const { confirmed } = await showConfirm('确认删除', '确定？'); if (!confirmed) return; try { await api('/api/category?id=' + id, { method: 'DELETE' }); loadCategories(); showToast('已删除'); } catch (e) { showToast('删除分类失败'); } };
-        const saveSettings = async () => { if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; } try { const data = { ...settingsForm.value }; if (data.pinnedType !== 'has') { data.pinned_post_id = ''; } delete data.pinnedType; const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response ? e.response.data.error || e.response.statusText : e.message)); } };
+        // 从 settingsForm 中挑选指定字段（各设置页独立保存，不影响其他页字段）
+        const pickSettings = (keys) => { const data = {}; keys.forEach(k => { data[k] = settingsForm.value[k]; }); return data; };
+        const postSettings = async (data, onSuccess) => { try { const r = await api('/api/settings', { method: 'POST', data: data }); if (r.data && r.data.success) { showToast('保存成功'); if (onSuccess) onSuccess(); } else { alert('保存失败: ' + (r.data ? r.data.error : '未知错误')); } } catch (e) { console.error('保存设置错误:', e); alert('保存失败: ' + (e.response ? e.response.data.error || e.response.statusText : e.message)); } };
+        // 网站设置：站点信息 + 内容与安全
+        const saveSiteSettings = async () => {
+          if (settingsForm.value.sitePasswordType === 'has' && !settingsForm.value.site_password && !sitePasswordSet.value) { alert('请输入全站密码'); return; }
+          const data = pickSettings(['site_name', 'site_description', 'site_footer', 'copyright_notice', 'iconfont_css', 'custom_js', 'allowed_origins', 'allow_robots', 'enable_compression']);
+          if (settingsForm.value.sitePasswordType !== 'has') { data.site_password = ''; } else if (settingsForm.value.site_password) { data.site_password = settingsForm.value.site_password; }
+          await postSettings(data, () => { sitePasswordSet.value = settingsForm.value.sitePasswordType === 'has'; settingsForm.value.site_password = ''; syncIconfontAfterSave(); });
+        };
+        // 外观布局：主题与模块位置
+        const saveAppearanceSettings = async () => {
+          if (settingsForm.value.pinnedType === 'has' && !settingsForm.value.pinned_post_id) { alert('请输入置顶文章编号'); return; }
+          const data = pickSettings(['site_theme', 'profile_position', 'enable_tag_cloud', 'tag_cloud_position', 'ad_position', 'ad_content']);
+          data.pinned_post_id = settingsForm.value.pinnedType === 'has' ? settingsForm.value.pinned_post_id : '';
+          await postSettings(data, () => { currentPinnedId.value = data.pinned_post_id; });
+        };
+        // 个人设置：个人信息与友链
+        const saveProfileSettings = async () => {
+          const data = pickSettings(['site_author', 'site_bio', 'site_created_at', 'links_title', 'site_links']);
+          await postSettings(data);
+        };
         const handleCoverChange = async (e) => { const f = e.target.files[0]; if (f) await uploadFile(f); };
         const handleCoverDrop = async (e) => { const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) await uploadFile(f); };
         const handleDrop = async (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f && f.type.startsWith('image/')) await uploadFile(f); };
-        const uploadFile = async (f) => { if (f.size > 2097152) { alert('文件大小不能超过 2MB'); return; } const fd = new FormData(); fd.append('file', f); const r = await fetch('/api/upload', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) { form.value.cover_image = d.url; coverPreview.value = d.url; } };
+        const uploadFile = async (f) => { if (f.size > 2097152) { alert('文件大小不能超过 2MB'); return; } const fd = new FormData(); fd.append('file', f); const r = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }, body: fd }); const d = await r.json(); if (d.url) { form.value.cover_image = d.url; coverPreview.value = d.url; } else { alert(d.error || '上传失败'); } };
         const deleteCover = async () => {
           const imageUrl = form.value.cover_image;
           if (!imageUrl) return;
@@ -875,6 +943,97 @@ export function getAdminHTML() {
           setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + insert.length; }, 0);
         };
 
+        // 表情包功能
+        const loadEmojiOnInit = async () => {
+          if (settingsForm.value.iconfont_css && iconList.value.length === 0) {
+            await loadIconList();
+          }
+        };
+        // 保存设置后同步表情包资源（链接变更时自动重载，无需手动刷新页面）
+        const syncIconfontAfterSave = () => {
+          const cssUrl = settingsForm.value.iconfont_css;
+          if (!cssUrl) { iconList.value = []; loadedIconfontUrl.value = ''; return; }
+          if (cssUrl !== loadedIconfontUrl.value) { loadIconList(); }
+        };
+        const loadIconList = async () => {
+          emojiLoading.value = true;
+          try {
+            const cssUrl = settingsForm.value.iconfont_css;
+            if (!cssUrl) { emojiLoading.value = false; return; }
+            const url = cssUrl.startsWith('//') ? 'https:' + cssUrl : cssUrl;
+            // .js 为 Symbol（多色 SVG）模式，.css 为 Font class（单色字体）模式
+            const isSymbol = url.split('?')[0].endsWith('.js');
+            // 清理旧链接注入的资源（Symbol 模式还需移除已插入的 SVG 雪碧图，避免旧图标 id 冲突）
+            document.querySelectorAll('[data-iconfont-res]').forEach(el => {
+              const res = el.tagName === 'SCRIPT' ? el.src : el.href;
+              if (res !== url) {
+                if (el.tagName === 'SCRIPT') {
+                  document.querySelectorAll('body > svg[aria-hidden="true"]').forEach(s => { if (s.style.width === '0px' || s.getAttribute('width') === '0') s.remove(); });
+                }
+                el.remove();
+              }
+            });
+            // 动态注入 iconfont 资源
+            if (isSymbol) {
+              if (!document.querySelector('script[src="' + url + '"]')) {
+                const script = document.createElement('script');
+                script.src = url;
+                script.setAttribute('data-iconfont-res', '1');
+                document.head.appendChild(script);
+              }
+            } else if (!document.querySelector('link[href="' + url + '"]')) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = url;
+              link.setAttribute('data-iconfont-res', '1');
+              document.head.appendChild(link);
+            }
+            // 通过后端代理获取资源内容（解决跨域问题）
+            const proxyUrl = '/api/proxy-css?url=' + encodeURIComponent(cssUrl);
+            console.log('[表情包] 请求代理:', proxyUrl, '模式:', isSymbol ? 'Symbol' : 'Font class');
+            const resp = await fetch(proxyUrl);
+            console.log('[表情包] 响应状态:', resp.status, resp.statusText);
+            const resText = await resp.text();
+            console.log('[表情包] 内容长度:', resText.length, '前100字符:', resText.substring(0, 100));
+            const icons = [];
+            const seen = new Set();
+            let match;
+            if (isSymbol) {
+              // Symbol 模式：从 JS 中解析 <symbol id="icon-xxx"> 定义
+              const regex = /<symbol[^>]*?id="((?:icon|iconfont)[a-zA-Z0-9_-]*)"/g;
+              while ((match = regex.exec(resText)) !== null) {
+                if (match[1] && !seen.has(match[1])) { seen.add(match[1]); icons.push({ type: 'svg', cls: match[1] }); }
+              }
+            } else {
+              // Font class 模式：匹配 .icon-xxx:before 格式（iconfont 官方格式）
+              const regex = /\\.((?:icon|iconfont)[a-zA-Z0-9_-]*?)\\s*:\\s*before\\s*\\{/g;
+              while ((match = regex.exec(resText)) !== null) {
+                if (match[1] && !seen.has(match[1])) { seen.add(match[1]); icons.push({ type: 'font', cls: 'iconfont ' + match[1] }); }
+              }
+            }
+            console.log('[表情包] 找到图标数量:', icons.length, icons.slice(0, 3));
+            iconList.value = icons;
+            loadedIconfontUrl.value = cssUrl;
+          } catch (e) {
+            console.error('[表情包] 加载失败:', e);
+            iconList.value = [];
+          } finally {
+            emojiLoading.value = false;
+          }
+        };
+        const insertEmoji = (icon) => {
+          const ta = document.querySelector('textarea:focus') || document.querySelector('textarea');
+          if (!ta) return;
+          const start = ta.selectionStart;
+          const end = ta.selectionEnd;
+          const text = form.value.content || '';
+          const insert = icon.type === 'svg'
+            ? '<svg class="icon" aria-hidden="true"><use xlink:href="#' + icon.cls + '"></use></svg>'
+            : '<i class="' + icon.cls + '"></i>';
+          form.value.content = text.substring(0, start) + insert + text.substring(end);
+          setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + insert.length; }, 0);
+        };
+
         // 置顶文章方法
         const setPinnedPost = async (postId) => {
           console.log('[setPinnedPost] clicked, postId:', postId);
@@ -919,7 +1078,7 @@ export function getAdminHTML() {
         // 主题配置
         const themes = {
           'animal-forest': {
-            name: '动物森林',
+            name: '动森',
             headerBg: 'linear-gradient(180deg, #8ac68a 0%, #6fba2c 100%)',
             sidebarBg: '#8ac68a',
             btnBg: '#19c8b9',
@@ -936,7 +1095,7 @@ export function getAdminHTML() {
             inputShadow: '#d4c9b4'
           },
           'ocean-breeze': {
-            name: '海洋微风',
+            name: '蔚蓝',
             headerBg: 'linear-gradient(180deg, #4ECDC4 0%, #2C9C93 100%)',
             sidebarBg: '#4ECDC4',
             btnBg: '#4ECDC4',
@@ -951,6 +1110,23 @@ export function getAdminHTML() {
             textSecondary: '#7F8C8D',
             inputBorder: '#B8E6E1',
             inputShadow: '#A0D8D2'
+          },
+          'diy-themes': {
+            name: '自定义',
+            headerBg: 'linear-gradient(180deg, #667eea 0%, #764ba2 100%)',
+            sidebarBg: '#667eea',
+            btnBg: '#667eea',
+            btnShadow: '#5a6fd6',
+            dangerBg: '#e05a5a',
+            dangerShadow: '#c94444',
+            cardBg: '#ffffff',
+            cardBorder: '#e2e8f0',
+            bodyBg: '#f7fafc',
+            textPrimary: '#2d3748',
+            textBody: '#4a5568',
+            textSecondary: '#a0aec0',
+            inputBorder: '#e2e8f0',
+            inputShadow: '#edf2f7'
           }
         };
 
@@ -971,6 +1147,14 @@ export function getAdminHTML() {
           root.style.setProperty('--text-secondary', theme.textSecondary);
           root.style.setProperty('--input-border', theme.inputBorder);
           root.style.setProperty('--input-shadow', theme.inputShadow);
+        };
+
+        const applyCopyrightTemplate = () => {
+          settingsForm.value.copyright_notice = '<div style="text-align:center;line-height:2">版权归属：@' + (settingsForm.value.site_author || '作者') + '<br>文章来自：{{article_url}}<br>发布日期：{{publish_date}}</div>';
+        };
+
+        const applyFooterTemplate = () => {
+          settingsForm.value.site_footer = '© ' + new Date().getFullYear() + ' ' + (settingsForm.value.site_name || '我的博客') + ' | 已运行 {{days_running}} 天 | 建站于 {{site_created_at}}';
         };
 
         // 自定义下拉组件
@@ -1041,7 +1225,7 @@ export function getAdminHTML() {
 
         watch(currentPage, (v) => { localStorage.setItem('adminPage', v); });
         onMounted(() => { check(); document.addEventListener('click', closeAllSelects); });
-        return { logged, username, password, login, logout, posts, editingId, form, coverPreview, toast, openAdd, cancelNewPost, toggleEdit, handleCoverChange, handleCoverDrop, handleDrop, deleteCover, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSettings, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost };
+        return { logged, username, password, login, logout, posts, editingId, form, coverPreview, toast, openAdd, cancelNewPost, toggleEdit, handleCoverChange, handleCoverDrop, handleDrop, deleteCover, savePost, deletePost, categories, currentPage, postPage, postPageSize, categoryForm, saveCategory, deleteCategory, editCategory, editingCategory, settingsForm, saveSiteSettings, saveAppearanceSettings, saveProfileSettings, sitePasswordSet, trashPosts, restorePost, permanentDelete, confirmModal, showConfirm, insertMd, applyTheme, applyCopyrightTemplate, applyFooterTemplate, customSelects, toggleSelect, selectOption, getSelectLabel, showImportModal, importFileName, importFileData, importing, importResult, handleImportFile, importPosts, currentPinnedId, setPinnedPost, iconList, emojiLoading, insertEmoji };
       }
     }).mount('#app');
   <\/script>

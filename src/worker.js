@@ -1,7 +1,7 @@
 // ==================== Cloudflare Light Blog - 主入口 ====================
 // 模块化架构 | HMAC 认证 | 分页 | 缓存 | SEO
 
-import { html, errorResponse, handleOptions, getCorsHeaders, escapeHtml } from './lib/utils.js';
+import { html, json, errorResponse, handleOptions, getCorsHeaders, escapeHtml, deriveHMACKey } from './lib/utils.js';
 import { initDB, getSettings } from './lib/db.js';
 import { authenticateRequest, verifyPasswordHash } from './lib/auth.js';
 import { handleImage } from './lib/image.js';
@@ -65,19 +65,27 @@ export default {
         return handleAPI(request, env, path);
       }
 
+      // RSS
+      if (path === '/rss.xml') {
+        return handleAPI(request, env, path);
+      }
+
       // robots.txt
       if (path === '/robots.txt') {
-        return handleRobots(env);
+        return handleRobots(request, env);
       }
 
-      // favicon.ico（从 settings 读取或返回空）
+      // favicon.ico（从静态资源读取，兄弟路径为 /icon/favicon.ico）
       if (path === '/favicon.ico') {
-        return handleFavicon(env);
+        return handleFavicon(request, env);
       }
 
-      // API 路由
+      // API 路由（统一附加 CORS 头）
       if (path.startsWith('/api/')) {
-        return handleAPI(request, env, path);
+        const resp = await handleAPI(request, env, path);
+        const cors = getCorsHeaders(request, siteSettings.allowed_origins || '*');
+        Object.entries(cors).forEach(([k, v]) => resp.headers.set(k, v));
+        return resp;
       }
 
       // 后台路由
@@ -92,7 +100,7 @@ export default {
 
       // Icon 图标
       if (path.startsWith('/icon/')) {
-        return handleIcon(env, path);
+        return handleIcon(request, env, path);
       }
 
       // 文章详情页
@@ -118,22 +126,11 @@ export default {
 async function handleFrontendPage(request, env, ctx) {
   return withCache(request, async () => {
     const settings = await getSettings(env);
-    return html(getFrontendHTML(settings));
+    return html(getFrontendHTML(settings, request.url));
   }, 300); // 缓存 5 分钟
 }
 
-/**
- * 使用 HKDF 派生 HMAC 密钥（与 api.js 保持一致）
- */
-async function deriveHMACKey(password, info) {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(password), 'HKDF', false, ['deriveBits']);
-  const derivedBits = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('cloudflare-light-blog-cookie-v1'), info: encoder.encode(info) },
-    keyMaterial, 256
-  );
-  return crypto.subtle.importKey('raw', derivedBits, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-}
+
 
 /**
  * 验证文章密码 cookie
@@ -237,15 +234,15 @@ function showSitePasswordPage(settings) {
 /**
  * robots.txt
  */
-async function handleRobots(env) {
+async function handleRobots(request, env) {
   const settings = await getSettings(env);
   const allowRobots = settings.allow_robots !== '0';
-  const host = settings.site_name || 'Blog';
+  const origin = new URL(request.url).origin;
 
   const content = allowRobots
     ? `User-agent: *
 Allow: /
-Sitemap: /sitemap.xml
+Sitemap: ${origin}/sitemap.xml
 `
     : `User-agent: *
 Disallow: /
@@ -257,14 +254,14 @@ Disallow: /
 }
 
 /**
- * favicon.ico
+ * favicon.ico（从静态资源读取）
  */
-async function handleFavicon(env) {
+async function handleFavicon(request, env) {
   if (!env.ASSETS) {
     return new Response(null, { status: 204 });
   }
 
-  const response = await env.ASSETS.fetch(new Request('/favicon.ico'));
+  const response = await env.ASSETS.fetch(new URL('/icon/favicon.ico', request.url));
   if (response && response.status !== 404) {
     return response;
   }
@@ -275,16 +272,13 @@ async function handleFavicon(env) {
 /**
  * Icon 图标（从静态资源读取）
  */
-async function handleIcon(env, path) {
-  const filename = path.replace('/icon/', '');
-  
+async function handleIcon(request, env, path) {
   if (!env.ASSETS) {
     return new Response('Not Found', { status: 404 });
   }
 
-  const assetPath = '/' + filename;
-  const response = await env.ASSETS.fetch(new Request(assetPath));
-  
+  const response = await env.ASSETS.fetch(new URL(path, request.url));
+
   if (!response || response.status === 404) {
     return new Response('Not Found', { status: 404 });
   }
@@ -307,17 +301,17 @@ async function handlePostPage(request, env, path, ctx) {
 
   // 如果带密码参数，不缓存
   if (providedPassword) {
-    return renderPostPage(request, env, id, providedPassword);
+    return renderPostPage(request, env, id, providedPassword, ctx);
   }
 
   // 文章详情页不缓存（编辑后立即生效）
-  return renderPostPage(request, env, id, null);
+  return renderPostPage(request, env, id, null, ctx);
 }
 
 /**
  * 渲染文章详情页
  */
-async function renderPostPage(request, env, id, providedPassword) {
+async function renderPostPage(request, env, id, providedPassword, ctx) {
   const settings = await getSettings(env);
 
   const post = await env.DB.prepare(
@@ -326,6 +320,11 @@ async function renderPostPage(request, env, id, providedPassword) {
 
   if (!post) {
     return html('文章不存在', 404);
+  }
+
+  // 异步累加浏览次数（不阻塞响应）
+  if (ctx) {
+    ctx.waitUntil(env.DB.prepare("UPDATE posts SET view_count = view_count + 1 WHERE id=?").bind(id).run());
   }
 
   // 检查密码保护
@@ -346,7 +345,7 @@ async function renderPostPage(request, env, id, providedPassword) {
     }
   }
 
-  return html(getPostHTML(post, settings));
+  return html(getPostHTML(post, settings, request.url));
 }
 
 /**

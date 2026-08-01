@@ -115,20 +115,25 @@ export async function initDB(env) {
     const defaultSettings = [
       ['site_name', '我的博客'],
       ['site_description', '一个使用 Cloudflare 构建的博客'],
-      ['site_favicon', ''],
-      ['site_avatar', ''],
-      ['site_bio', ''],
-      ['site_links', ''],
+      ['site_bio', '这是我的个人简介内容。'],
+      ['site_links', 'Google,https://google.com'],
+      ['links_title', '友链'],
       ['site_footer', '© 2026 我的博客'],
       ['custom_js', ''],
-      ['site_author', ''],
-      ['category_icon', '📂'],
-      ['links_icon', '🔗'],
-      ['tag_cloud_icon', '🏷️'],
+      ['iconfont_css', ''],
+      ['site_author', '这是我的名字'],
+      ['site_created_at', ''],
+      ['site_theme', 'animal-forest'],
       ['enable_tag_cloud', '1'],
       ['profile_position', 'left'],
       ['tag_cloud_position', 'left'],
-      ['pinned_post_id', '']
+      ['pinned_post_id', ''],
+      ['copyright_notice', ''],
+      ['ad_content', ''],
+      ['ad_position', 'left'],
+      ['allow_robots', '1'],
+      ['enable_compression', '0'],
+      ['allowed_origins', '*']
     ];
 
     // 逐条插入默认设置（避免 D1 batch 10条限制）
@@ -136,7 +141,7 @@ export async function initDB(env) {
       await DB.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)").bind(key, value).run();
     }
 
-    // ========== 5. 插入示例文章（仅在表为空时）==========
+    // ========== 6. 插入示例文章（仅在表为空时）==========
     const postCount = await DB.prepare("SELECT COUNT(*) as cnt FROM posts").first();
     if (postCount && postCount.cnt === 0) {
       const now = new Date().toISOString();
@@ -161,6 +166,14 @@ export async function initDB(env) {
     }
 
     console.log('[DB] 数据库初始化完成');
+
+    // ========== 7. 插入默认分类（仅在表为空时）==========
+    const catCount = await DB.prepare("SELECT COUNT(*) as cnt FROM categories").first();
+    if (catCount && catCount.cnt === 0) {
+      await DB.prepare("INSERT INTO categories (name, slug, description) VALUES (?, ?, ?)").bind('分类A', 'fenleia', '').run();
+      console.log('[DB] 已添加默认分类');
+    }
+
     return true;
   } catch (e) {
     console.error('[DB] 初始化错误:', e.message || 'Error');
@@ -168,39 +181,69 @@ export async function initDB(env) {
   }
 }
 
+// ==================== Settings 内存缓存 ====================
+let settingsCache = null;
+let settingsCacheTime = 0;
+const SETTINGS_CACHE_TTL = 60 * 1000; // 缓存 60 秒
+
 /**
- * 获取所有设置
+ * 获取所有设置（带内存缓存）
  */
 export async function getSettings(env) {
+  // 缓存命中且未过期
+  if (settingsCache && Date.now() - settingsCacheTime < SETTINGS_CACHE_TTL) {
+    return settingsCache;
+  }
   const defaults = {
     site_name: '我的博客',
     site_description: '',
-    site_favicon: '',
-    site_avatar: '',
     site_bio: '',
     site_author: '',
+    site_created_at: '',
     site_footer: '',
     custom_js: '',
+    iconfont_css: '',
     site_links: '',
-    category_icon: '📂',
-    links_icon: '🔗',
-    tag_cloud_icon: '🏷️',
+    links_title: '友链',
+    site_theme: 'animal-forest',
     enable_tag_cloud: '1',
     profile_position: 'left',
     tag_cloud_position: 'left',
-    pinned_post_id: ''
+    pinned_post_id: '',
+    copyright_notice: '',
+    ad_content: '',
+    ad_position: 'left',
+    allow_robots: '1',
+    enable_compression: '0',
+    allowed_origins: '*',
+    site_password: ''
   };
 
   try {
     const { results } = await env.DB.prepare("SELECT key, value FROM settings").all();
     if (results) {
-      results.forEach(s => { defaults[s.key] = s.value || ''; });
+      // 过滤速率限制等内部记录，避免污染设置数据
+      results.forEach(s => {
+        if (s.key.includes('_rate_')) return;
+        defaults[s.key] = s.value || '';
+      });
     }
   } catch (e) {
     console.error('[DB] 获取设置失败:', e);
   }
 
+  // 更新缓存
+  settingsCache = defaults;
+  settingsCacheTime = Date.now();
   return defaults;
+}
+
+/**
+ * 清除设置缓存（保存设置后调用）
+ */
+function invalidateSettingsCache() {
+  settingsCache = null;
+  settingsCacheTime = 0;
 }
 
 /**
@@ -220,4 +263,6 @@ export async function saveSettings(env, settingsObj) {
       await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").bind(key, String(value)).run();
     }
   }
+  // 保存后清除缓存
+  invalidateSettingsCache();
 }

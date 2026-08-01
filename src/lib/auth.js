@@ -133,17 +133,3 @@ export async function authenticateRequest(request, env) {
   const token = authHeader.replace('Bearer ', '');
   return verifyToken(token, env.ADMIN_PASSWORD);
 }
-
-/**
- * 手动注销：递增 token 版本使所有旧 token 失效
- */
-export async function invalidateAllTokens(env) {
-  if (!env.DB) return;
-  try {
-    const row = await env.DB.prepare("SELECT value FROM settings WHERE key='token_version'").first();
-    const current = row ? parseInt(row.value) || 0 : 0;
-    await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('token_version', ?)").bind(String(current + 1)).run();
-  } catch (e) {
-    console.error('[Auth] 注销失败:', e);
-  }
-}
