@@ -167,9 +167,6 @@ export function getPostHTML(post, settings, requestUrl) {
           <div class="stat-item"><div id="stat-cats" class="stat-num">-</div><div class="stat-label">分类</div></div>
           <div class="stat-item"><div id="stat-tags" class="stat-num">-</div><div class="stat-label">标签</div></div>
         </div>
-        <div style="font-size:0.78em;color:${currentTheme.textSecondary};text-align:center;padding-bottom:14px;border-bottom:2px solid ${currentTheme.cardBorder};margin-bottom:14px">
-          建站时间：${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(settings.site_created_at || '2020-02-02'))}
-        </div>
         <h4><img src="/icon/category.png" style="width:22px;height:22px;vertical-align:middle;margin-right:6px">分类</h4>
         <div id="category-list" class="category-list"></div>
         <h4><img src="/icon/friend-links.png" style="width:22px;height:22px;vertical-align:middle;margin-right:6px">${escapeHtml(settings.links_title || '友链')}</h4>
@@ -222,9 +219,6 @@ export function getPostHTML(post, settings, requestUrl) {
           <div class="stat-item"><div id="stat-posts" class="stat-num">-</div><div class="stat-label">文章</div></div>
           <div class="stat-item"><div id="stat-cats" class="stat-num">-</div><div class="stat-label">分类</div></div>
           <div class="stat-item"><div id="stat-tags" class="stat-num">-</div><div class="stat-label">标签</div></div>
-        </div>
-        <div style="font-size:0.78em;color:${currentTheme.textSecondary};text-align:center;padding-bottom:14px;border-bottom:2px solid ${currentTheme.cardBorder};margin-bottom:14px">
-          建站时间：${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(settings.site_created_at || '2020-02-02'))}
         </div>
         <h4><img src="/icon/category.png" style="width:22px;height:22px;vertical-align:middle;margin-right:6px">分类</h4>
         <div id="category-list" class="category-list"></div>
