@@ -13,6 +13,12 @@ export function getPostHTML(post, settings, requestUrl) {
   // 表情包资源：.js 为 Symbol（多色 SVG）模式，.css 为 Font class（单色字体）模式
   const iconfontUrl = settings.iconfont_css ? (settings.iconfont_css.startsWith('//') ? 'https:' + settings.iconfont_css : settings.iconfont_css) : '';
   const iconfontTag = iconfontUrl ? (iconfontUrl.split('?')[0].endsWith('.js') ? `<script src="${iconfontUrl}"></script>` : `<link href="${iconfontUrl}" rel="stylesheet">`) : '';
+  // 文章页信息（日期 / 侧边栏配置）
+  const cnDate = (ts) => { if (!ts) return ''; const d = new Date(ts); if (isNaN(d.getTime())) return ''; return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日'; };
+  const pubDateStr = cnDate(post.published_at || post.created_at);
+  const hasSidebarL = settings.profile_position === 'left' || settings.tag_cloud_position === 'left' || settings.ad_position === 'left';
+  const hasSidebarR = settings.profile_position === 'right' || settings.tag_cloud_position === 'right' || settings.ad_position === 'right';
+  const hasSidebar = hasSidebarL || hasSidebarR;
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -26,13 +32,12 @@ export function getPostHTML(post, settings, requestUrl) {
   <link rel="icon" href="/icon/favicon.ico">
   <!-- Open Graph -->
   <meta property="og:type" content="article">
-  <meta property="og:url" content="${new URL('/post/' + new Date(post.created_at).getFullYear() + String(new Date(post.created_at).getMonth()+1).padStart(2,'0') + '/' + post.id, requestUrl).href}">
-  <link rel="canonical" href="/post/${new Date(post.created_at).getFullYear()}${String(new Date(post.created_at).getMonth()+1).padStart(2,'0')}/${post.id}">
+  <meta property="og:url" content="${new URL('/post/' + post.id, requestUrl).href}">
+  <link rel="canonical" href="/post/${post.id}">
   <meta property="og:title" content="${escapeHtml(post.title)}">
   <meta property="og:description" content="${escapeHtml(postExcerpt)}">
   <meta property="og:site_name" content="${escapeHtml(siteName)}">
   <meta property="article:published_time" content="${post.published_at || post.created_at}">
-  <meta property="article:modified_time" content="${post.updated_at}">
   ${post.category ? `<meta property="article:section" content="${escapeHtml(post.category)}">` : ''}
   ${post.tags ? post.tags.split(',').map(t => `<meta property="article:tag" content="${escapeHtml(t.trim())}">`).join('\n  ') : ''}
   ${post.cover_image ? `<meta property="og:image" content="${escapeHtml(post.cover_image)}">` : ''}
@@ -47,7 +52,6 @@ export function getPostHTML(post, settings, requestUrl) {
     "headline": post.title,
     "description": postExcerpt,
     "datePublished": post.published_at || post.created_at,
-    "dateModified": post.updated_at,
     "author": { "@type": "Person", "name": settings.site_author || siteName },
     "mainEntityOfPage": { "@type": "WebPage" }
   })}</script>
@@ -68,9 +72,12 @@ export function getPostHTML(post, settings, requestUrl) {
       --btn-shadow: ${currentTheme.btnShadow};
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: ${currentTheme.fontFamily}; background: var(--body-bg); color: var(--text-body); }
+    html { scroll-behavior: smooth; }
+    body { font-family: ${currentTheme.fontFamily}; background: var(--body-bg); color: var(--text-body); cursor: default; }
+    /* 输入光标（文本 I 形）仅保留在文章正文内容区 */
+    #post-content { cursor: text; }
     button, input, select, textarea { font-family: inherit; }
-    .content-area { width: 792px; flex-shrink: 0; }
+    .content-area { width: 792px; max-width: 100%; min-width: 0; flex-shrink: 1; }
     header { background: var(--header-bg); color: #fff; padding: 40px 20px; text-align: center; position: relative; overflow: hidden; }
     header::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, rgba(0,0,0,0.05)); }
     header h1 { font-size: 2.5em; font-weight: 800; margin-bottom: 8px; }
@@ -91,17 +98,39 @@ export function getPostHTML(post, settings, requestUrl) {
     .profile-card .category-list a, .profile-card .link-list a { display: block; padding: 8px 12px; margin: 0 0 6px 0; color: var(--text-body); text-decoration: none; background: var(--body-bg); border-radius: 12px; font-size: 0.85em; font-weight: 600; transition: all 0.2s; border: 2px solid transparent; }
     .profile-card .category-list a:hover, .profile-card .link-list a:hover { background: #e6f9f6; border-color: var(--btn-bg); color: var(--btn-shadow); }
     .ad-container img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 0; display: block; margin: 0; }
-    .post-article { background: var(--card-bg); padding: 36px; border-radius: 20px; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); border: 2px solid var(--card-border); }
+    .post-article { background: var(--card-bg); padding: 36px; border-radius: 20px; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); border: 2px solid var(--card-border); min-width: 0; overflow-wrap: break-word; }
     .post-article i.iconfont { font-size: 1.8em; vertical-align: middle; line-height: 1; }
     .post-article svg.icon { width: 1.8em; height: 1.8em; vertical-align: middle; fill: currentColor; overflow: hidden; }
     .post-article h1 { font-size: 1.8em; margin-bottom: 16px; color: var(--text-primary); font-weight: 800; }
+    .post-article h2 { font-size: 1.45em; margin: 1.7em 0 0.7em; padding-left: 12px; border-left: 4px solid var(--btn-bg); color: var(--text-primary); font-weight: 800; line-height: 1.45; scroll-margin-top: 16px; }
+    .post-article h3 { font-size: 1.22em; margin: 1.5em 0 0.6em; color: var(--text-primary); font-weight: 800; scroll-margin-top: 16px; }
+    .post-article h4 { font-size: 1.08em; margin: 1.4em 0 0.5em; color: var(--text-primary); font-weight: 700; scroll-margin-top: 16px; }
     .post-article p { margin: 0.8em 0; line-height: 1.8; }
-    .post-article img { max-width: 100%; height: auto; margin: 1em 0; border-radius: 12px; cursor: zoom-in; }
+    .post-article ul, .post-article ol { margin: 0.8em 0; padding-left: 1.6em; line-height: 1.8; }
+    .post-article li { margin: 0.35em 0; line-height: 1.8; }
+    .post-article li > ul, .post-article li > ol { margin: 0.3em 0; }
+    .post-article a { color: var(--btn-shadow); text-decoration: underline; text-underline-offset: 3px; word-break: break-word; }
+    .post-article a:hover { color: var(--btn-bg); }
+    .post-article strong { color: var(--text-primary); }
+    .post-article hr { border: none; border-top: 2px dashed var(--card-border); margin: 2em 0; }
+    .post-article img { max-width: 100%; height: auto; display: block; margin: 1em auto; border-radius: 12px; cursor: zoom-in; }
     .post-article img:hover { transform: scale(1.02); transition: transform 0.2s; }
+    .post-article .icon-img { display: inline; margin: 0; }
+    .post-article table { width: 100%; max-width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.95em; display: block; overflow-x: auto; }
+    .post-article th, .post-article td { border: 1px solid var(--card-border); padding: 10px 14px; text-align: left; line-height: 1.6; }
+    .post-article th { background: var(--body-bg); color: var(--text-primary); font-weight: 700; white-space: nowrap; }
+    .post-article tbody tr:nth-child(even) { background: rgba(0,0,0,0.02); }
     .icon-img { cursor: default !important; pointer-events: none; }
     .icon-img:hover { transform: none !important; }
-    .post-meta { color: var(--text-secondary); font-size: 0.85em; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--card-border); font-weight: 600; }
-    .post-meta span { margin-right: 16px; }
+    .post-toc { background: var(--body-bg); border: 2px dashed var(--card-border); border-radius: 14px; padding: 16px 18px; margin: 0 0 24px; }
+    .post-toc[hidden] { display: none; }
+    .post-toc-title { font-size: 0.95em; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .post-article .post-toc a { display: block; padding: 5px 10px; border-radius: 8px; color: var(--text-body); text-decoration: none !important; font-size: 0.88em; line-height: 1.6; border-left: 2px solid transparent; transition: all 0.2s; word-break: break-word; }
+    .post-article .post-toc a:hover { background: #e6f9f6; color: var(--btn-shadow); border-left-color: var(--btn-bg); }
+    .post-article .post-toc a.toc-h3 { padding-left: 26px; font-size: 0.83em; color: var(--text-secondary); }
+    .post-meta { color: var(--text-secondary); font-size: 0.85em; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--card-border); font-weight: 600; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+    .post-meta span { display: inline-flex; align-items: center; gap: 6px; }
+    .post-meta img { flex-shrink: 0; }
     .back-link { display: inline-block; margin-bottom: 20px; padding: 10px 24px; background: var(--btn-bg); color: #fff; text-decoration: none; border-radius: 50px; font-weight: 600; font-size: 0.9em; box-shadow: 0 4px 0 0 var(--btn-shadow); transition: all 0.25s; }
     .back-link:hover { transform: translateY(-1px); box-shadow: 0 5px 0 0 var(--btn-shadow); }
     footer { text-align: center; padding: 30px 20px; color: var(--text-secondary); font-size: 0.85em; }
@@ -126,29 +155,32 @@ export function getPostHTML(post, settings, requestUrl) {
     .mobile-nav-toggle.nav-open { left: 208px !important; }
     .mobile-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
     .mobile-overlay.show { display: block; }
+    @media (max-width: 1200px) and (min-width: 769px) {
+      .sidebar-right { display: none; }
+    }
     @media (max-width: 768px) {
-      header { padding: 16px; }
+      header { padding: 16px 60px; }
       header h1 { font-size: 1.4em; }
       header p { font-size: 0.85em; }
       .mobile-nav-toggle { display: flex; align-items: center; justify-content: center; }
       .mobile-overlay.show { display: block; }
-      main { flex-direction: row; padding: 0 12px; gap: 0; margin-top: 12px; position: relative; }
-      .sidebar { width: 260px; position: fixed; top: 0; left: -260px; height: 100vh; z-index: 1002; transition: left 0.3s ease; overflow-y: auto; background: var(--body-bg); padding: 16px; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
-      .sidebar.open { left: 0; }
+      main { padding: 0 12px; gap: 0; margin-top: 12px; }
+      .sidebar, .sidebar-right { width: 260px; position: fixed; top: 0; left: -270px; height: 100vh; height: 100dvh; z-index: 1002; transition: left 0.3s ease; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--card-bg); padding: 16px; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
+      .sidebar.open, .sidebar-right.open { left: 0; }
       .profile-card { border-radius: 16px; padding: 16px; }
       .profile-card .avatar { width: 120px; height: 120px; }
       .profile-card .name { font-size: 1em; }
+      .content-area { width: 100%; }
       .post-article { padding: 20px; border-radius: 16px; }
       .post-article h1 { font-size: 1.3em; }
-      .sidebar-right { display: none; }
       footer { padding: 20px 16px; font-size: 0.8em; }
     }
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
 </head>
 <body>
-  <button class="mobile-nav-toggle" onclick="toggleNav()">☰</button>
-  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleNav()"></div>
+  ${hasSidebar ? `<button class="mobile-nav-toggle" onclick="toggleNav()" aria-label="打开菜单">☰</button>
+  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleNav()"></div>` : ''}
   <header>
     <h1><a href="/">${escapeHtml(siteName)}</a></h1>
     ${siteDesc ? `<p>${escapeHtml(siteDesc)}</p>` : ''}
@@ -192,16 +224,17 @@ export function getPostHTML(post, settings, requestUrl) {
         ${settings.pinned_post_id && String(post.id) === String(settings.pinned_post_id) ? '<img src="/icon/pin-post.png" class="icon-img" style="position:absolute;top:24px;right:24px;width:36px;height:36px">' : ''}
         <h1>${escapeHtml(post.title)}</h1>
         <div class="post-meta">
-          <span><img src="/icon/category.png" class="icon-img" style="width:18px;height:18px;vertical-align:middle;margin-right:6px">${escapeHtml(post.category)}</span>
-          <span>${(function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.created_at))}</span>
+          ${post.category ? `<span><img src="/icon/category.png" class="icon-img" style="width:18px;height:18px">${escapeHtml(post.category)}</span>` : ''}
+          ${pubDateStr ? `<span>${pubDateStr}</span>` : ''}
         </div>
+        ${settings.enable_post_toc !== '0' ? '<div id="post-toc" class="post-toc" hidden></div>' : ''}
         <div id="post-content" style="line-height:1.8"></div>
         ${post.tags ? `<div style="margin-top:24px;padding-top:16px;border-top:2px solid #e8e0cc;display:flex;flex-wrap:wrap;gap:8px">${post.tags.split(',').map(t =>
           `<span style="display:inline-block;padding:5px 14px;background:#e6f9f6;color:${currentTheme.btnShadow};font-size:0.85em;font-weight:700;border:1.5px solid ${currentTheme.btnBg};border-radius:50px">${escapeHtml(t.trim())}</span>`
         ).join('')}</div>` : ''}
         ${settings.copyright_notice ? `
         <div style="margin-top:24px;padding:20px;background:#f5f2eb;border:1.5px solid #ddd6c6;border-radius:12px;font-size:0.9em;color:${currentTheme.textBody};line-height:1.8">
-          ${settings.copyright_notice.replace(/\{\{article_url\}\}/g, escapeHtml(requestUrl || '')).replace(/\{\{publish_date\}\}/g, post.created_at ? (function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.created_at)) : '')}
+          ${settings.copyright_notice.replace(/\{\{article_url\}\}/g, escapeHtml(requestUrl || '')).replace(/\{\{publish_date\}\}/g, (post.published_at || post.created_at) ? (function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.published_at || post.created_at)) : '')}
         </div>
         ` : ''}
         <div id="related-posts" style="margin-top:24px"></div>
@@ -327,16 +360,18 @@ export function getPostHTML(post, settings, requestUrl) {
     });
 
     function toggleNav() {
-      document.querySelector('.sidebar').classList.toggle('open');
-      document.getElementById('mobileOverlay').classList.toggle('show');
-      document.querySelector('.mobile-nav-toggle').classList.toggle('nav-open');
+      var side = document.querySelector('.sidebar') || document.querySelector('.sidebar-right');
+      if (!side) return;
+      var open = side.classList.toggle('open');
+      document.getElementById('mobileOverlay').classList.toggle('show', open);
+      document.querySelector('.mobile-nav-toggle').classList.toggle('nav-open', open);
     }
 
     var lightboxImages = [];
     var lightboxIndex = 0;
 
     function initLightbox() {
-      lightboxImages = Array.from(document.querySelectorAll('.post-article img'));
+      lightboxImages = Array.from(document.querySelectorAll('.post-article img:not(.icon-img)'));
       lightboxImages.forEach(function(img, index) {
         img.addEventListener('click', function() {
           openLightbox(index);
@@ -531,6 +566,32 @@ export function getPostHTML(post, settings, requestUrl) {
       initLightbox();
       // 图片懒加载
       document.querySelectorAll('.post-article img').forEach(function(img) { img.setAttribute('loading', 'lazy'); });
+
+      // 生成文章目录（h2/h3 自动生成锚点）
+      (function() {
+        var tocBox = document.getElementById('post-toc');
+        if (!tocBox) return;
+        var headings = document.querySelectorAll('#post-content h2, #post-content h3');
+        if (headings.length < 2) return;
+        var links = [];
+        for (var i = 0; i < headings.length; i++) {
+          var h = headings[i];
+          var text = (h.textContent || '').trim();
+          if (!text) continue;
+          var id = 'heading-' + i;
+          h.id = id;
+          links.push('<a href="#' + id + '" data-target="' + id + '" class="toc-' + h.tagName.toLowerCase() + '">' + escapeHtml(text) + '</a>');
+        }
+        if (links.length < 2) return;
+        tocBox.innerHTML = '<div class="post-toc-title"><img src="/icon/category.png" class="icon-img" style="width:20px;height:20px">目录</div>' + links.join('');
+        tocBox.hidden = false;
+        tocBox.addEventListener('click', function(e) {
+          var a = e.target.closest ? e.target.closest('a') : null;
+          if (!a) return;
+          var el = document.getElementById(a.getAttribute('data-target'));
+          if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        });
+      })();
     });
   </script>
   <script>
@@ -551,11 +612,9 @@ export function getPostHTML(post, settings, requestUrl) {
         html += '<div class="related-grid">';
         posts.forEach(function(p) {
           var cover = p.cover_image ? '<img class="related-card-cover" src="' + escHtml(p.cover_image) + '" alt="' + escHtml(p.title) + '">' : '<div class="related-card-cover" style="display:flex;align-items:center;justify-content:center;color:${currentTheme.textSecondary};font-size:2em">📄</div>';
-          var date = new Date(p.created_at);
+          var date = new Date(p.published_at || p.created_at);
           var dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
-          // 文章路由格式为 /post/YYYYMM/id
-          var ym = date.getFullYear() + String(date.getMonth()+1).padStart(2,'0');
-          html += '<div class="related-card">' + cover + '<div class="related-card-content"><div class="related-card-title"><a href="/post/' + ym + '/' + p.id + '">' + escHtml(p.title) + '</a></div><div class="related-card-meta">' + escHtml(p.category) + ' · ' + dateStr + '</div></div></div>';
+          html += '<div class="related-card">' + cover + '<div class="related-card-content"><div class="related-card-title"><a href="/post/' + p.id + '">' + escHtml(p.title) + '</a></div><div class="related-card-meta">' + escHtml(p.category) + ' · ' + dateStr + '</div></div></div>';
         });
         html += '</div>';
         container.innerHTML = html;

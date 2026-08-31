@@ -13,6 +13,7 @@ export function getFrontendHTML(settings, requestUrl) {
   // 表情包资源：.js 为 Symbol（多色 SVG）模式，.css 为 Font class（单色字体）模式
   const iconfontUrl = settings.iconfont_css ? (settings.iconfont_css.startsWith('//') ? 'https:' + settings.iconfont_css : settings.iconfont_css) : '';
   const iconfontTag = iconfontUrl ? (iconfontUrl.split('?')[0].endsWith('.js') ? `<script src="${iconfontUrl}"></script>` : `<link href="${iconfontUrl}" rel="stylesheet">`) : '';
+  const hasSidebar = settings.profile_position === 'left' || settings.tag_cloud_position === 'left' || settings.ad_position === 'left' || settings.profile_position === 'right' || settings.tag_cloud_position === 'right' || settings.ad_position === 'right';
 
   const homepageJsonLd = JSON.stringify({
     "@context": "https://schema.org",
@@ -72,7 +73,7 @@ export function getFrontendHTML(settings, requestUrl) {
     main { max-width: 1400px; margin: 30px auto; padding: 0 20px; display: flex; gap: 24px; align-items: flex-start; justify-content: center; }
     .sidebar { width: 280px; flex-shrink: 0; }
     .sidebar-right { width: 280px; flex-shrink: 0; }
-    .post-list { width: 792px; flex-shrink: 0; }
+    .post-list { width: 792px; max-width: 100%; min-width: 0; flex-shrink: 1; }
     #app { display: flex; flex-direction: column; gap: 28px; }
     .post-card { background: var(--card-bg); border-radius: 20px; overflow: visible; box-shadow: 0 4px 10px rgba(107, 92, 67, 0.42); display: flex; flex-direction: row; transition: all 0.3s ease; border: 2px solid var(--card-border); }
     .post-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(114, 93, 66, 0.15); }
@@ -113,19 +114,22 @@ export function getFrontendHTML(settings, requestUrl) {
     .mobile-nav-toggle.nav-open { left: 208px !important; }
     .mobile-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
     .mobile-overlay.show { display: block; }
+    @media (max-width: 1200px) and (min-width: 769px) {
+      .sidebar-right { display: none; }
+    }
     @media (max-width: 768px) {
-      header { padding: 16px; }
+      header { padding: 16px 60px; }
       header h1 { font-size: 1.4em; }
       header p { font-size: 0.85em; }
       .mobile-nav-toggle { display: flex; align-items: center; justify-content: center; }
-      main { flex-direction: row; padding: 0 12px; gap: 0; margin-top: 12px; position: relative; }
-      .sidebar { width: 260px; position: fixed; top: 0; left: -260px; height: 100vh; z-index: 1002; transition: left 0.3s ease; overflow-y: auto; background: var(--body-bg); padding: 16px; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
-      .sidebar.open { left: 0; }
+      main { padding: 0 12px; gap: 0; margin-top: 12px; }
+      .sidebar, .sidebar-right { width: 260px; position: fixed; top: 0; left: -270px; height: 100vh; height: 100dvh; z-index: 1002; transition: left 0.3s ease; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--card-bg); padding: 16px; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
+      .sidebar.open, .sidebar-right.open { left: 0; }
       .profile-card { border-radius: 16px; padding: 16px; }
       .profile-card .avatar { width: 120px; height: 120px; }
       .profile-card .name { font-size: 1em; }
       .post-list { width: 100%; }
-      .sidebar-right { display: none; }
+      .sidebar-right { display: block; }
       #app { gap: 20px; }
       .post-card { flex-direction: column; border-radius: 16px; }
       .post-card .post-cover { display: none; }
@@ -142,8 +146,8 @@ export function getFrontendHTML(settings, requestUrl) {
   </style>
 </head>
 <body>
-  <button class="mobile-nav-toggle" onclick="toggleNav()">☰</button>
-  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleNav()"></div>
+  ${hasSidebar ? `<button class="mobile-nav-toggle" onclick="toggleNav()" aria-label="打开菜单">☰</button>
+  <div class="mobile-overlay" id="mobileOverlay" onclick="toggleNav()"></div>` : ''}
   <header>
     <h1><a href="/">${escapeHtml(siteName)}</a></h1>
     ${siteDesc ? `<p>${escapeHtml(siteDesc)}</p>` : ''}
@@ -253,9 +257,11 @@ export function getFrontendHTML(settings, requestUrl) {
 
     // 移动端导航
     function toggleNav() {
-      document.querySelector('.sidebar').classList.toggle('open');
-      document.getElementById('mobileOverlay').classList.toggle('show');
-      document.querySelector('.mobile-nav-toggle').classList.toggle('nav-open');
+      var side = document.querySelector('.sidebar') || document.querySelector('.sidebar-right');
+      if (!side) return;
+      var open = side.classList.toggle('open');
+      document.getElementById('mobileOverlay').classList.toggle('show', open);
+      document.querySelector('.mobile-nav-toggle').classList.toggle('nav-open', open);
     }
 
     // 加载侧边栏数据
@@ -371,7 +377,6 @@ export function getFrontendHTML(settings, requestUrl) {
           return;
         }
 
-        var formatDate = function(d) { var dt = new Date(d); return dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0'); };
         html += posts.map(function(post) {
           var isPinned = String(post.id) === String(pinned_post_id);
           var cover = post.cover_image ? '<img src="' + escHtml(post.cover_image) + '" alt="' + escHtml(post.title) + '" loading="lazy">' : '<span style="color:' + themeColors.textSecondary + '">封面</span>';
@@ -407,12 +412,12 @@ export function getFrontendHTML(settings, requestUrl) {
             '<div class="post-cover">' + cover + '</div>' +
             pinBadge +
             '<div class="post-content">' +
-              '<h2><a href="/post/' + formatDate(post.created_at) + '/' + post.id + '">' + escHtml(post.title) + '</a></h2>' +
+              '<h2><a href="/post/' + post.id + '">' + escHtml(post.title) + '</a></h2>' +
               '<p style="color:' + themeColors.textBody + ';font-size:0.9em;line-height:1.7;margin:8px 0">' + excerpt + '</p>' +
               (tags ? '<div style="margin:8px 0 0">' + tags + '</div>' : '') +
               '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">' +
-                '<div class="meta"><span><img src="/icon/category.png" style="width:16px;height:16px;vertical-align:middle;margin-right:4px">' + escHtml(post.category) + '</span><span>' + (function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.created_at)) + '</span></div>' +
-                '<a class="read-more" href="/post/' + formatDate(post.created_at) + '/' + post.id + '">阅读更多</a>' +
+                '<div class="meta"><span><img src="/icon/category.png" style="width:16px;height:16px;vertical-align:middle;margin-right:4px">' + escHtml(post.category) + '</span><span>' + (function(d){return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日'})(new Date(post.published_at || post.created_at)) + '</span></div>' +
+                '<a class="read-more" href="/post/' + post.id + '">阅读更多</a>' +
               '</div>' +
             '</div>' +
           '</article>';

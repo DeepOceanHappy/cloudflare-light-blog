@@ -74,11 +74,35 @@ export async function uploadImage(env, data, prefix) {
 }
 
 /**
+ * 列出 R2 存储桶中的图片（含文章封面图；分页遍历，最多返回 limit 张）
+ */
+export async function listImages(env, limit = 500) {
+  if (!env.R2) return { configured: false, images: [] };
+  const images = [];
+  let cursor;
+  do {
+    const page = await env.R2.list({ limit: Math.min(1000, Math.max(1, limit - images.length)), cursor });
+    for (const obj of (page.objects || [])) {
+      images.push({
+        key: obj.key,
+        url: '/images/' + obj.key,
+        size: obj.size,
+        uploaded: obj.uploaded ? new Date(obj.uploaded).toISOString() : ''
+      });
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor && images.length < limit);
+  images.sort((a, b) => (b.uploaded || '').localeCompare(a.uploaded || ''));
+  return { configured: true, images };
+}
+
+/**
  * 处理文件上传请求（优化：直接传 ArrayBuffer 到 R2）
  */
 export async function handleUpload(request, env) {
   try {
     const formData = await request.formData();
+
     const file = formData.get('file');
 
     if (!file || typeof file === 'string') {

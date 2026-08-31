@@ -5,6 +5,7 @@ import { html, json, errorResponse, handleOptions, getCorsHeaders, escapeHtml, d
 import { initDB, getSettings } from './lib/db.js';
 import { authenticateRequest, verifyPasswordHash } from './lib/auth.js';
 import { handleImage } from './lib/image.js';
+import { handleMcpRequest } from './mcp.js';
 import { withCache } from './lib/cache.js';
 import { handleAPI } from './api.js';
 import { getFrontendHTML } from './views/frontend.js';
@@ -91,6 +92,11 @@ export default {
       // 后台路由
       if (path.startsWith('/admin')) {
         return handleAdmin(request, env, path);
+      }
+
+      // MCP 服务（Streamable HTTP，供 AstrBot/OpenClaw 等 agent 对接；需后台开启）
+      if (path === '/mcp' || path.startsWith('/mcp/')) {
+        return handleMcpRequest(request, env, siteSettings);
       }
 
       // R2 图片
@@ -288,15 +294,30 @@ async function handleIcon(request, env, path) {
 
 /**
  * 文章详情页（带缓存）
+ * 兼容旧版日期式链接：/post/202607/1、/post/2026/07/1 等（末段为文章 ID），
+ * 统一 301 跳转到规范链接 /post/:id，避免重复收录
  */
 async function handlePostPage(request, env, path, ctx) {
-  const match = path.match(/^\/post\/(\d{6})\/(\d+)$/);
+  // 支持 /post/123、/post/202607/1、/post/2026/07/1（任意段数，末段为数字 ID）
+  const match = path.match(/^\/post\/(?:[^/]+\/)*(\d+)\/?$/);
   if (!match) {
-    return html('无效的文章链接', 404);
+    // 404 明确禁止缓存：防止 CDN/浏览器把旧的错误页缓存，导致修复后仍打不开
+    const notFound = html('无效的文章链接', 404);
+    notFound.headers.set('Cache-Control', 'no-store');
+    return notFound;
   }
 
-  const id = parseInt(match[2]);
+  const id = parseInt(match[1]);
   const url = new URL(request.url);
+  const canonical = '/post/' + id;
+
+  // 非规范链接（旧日期格式/多余路径段）→ 301 到规范链接，并保留查询参数
+  if (path !== canonical && path !== canonical + '/') {
+    const target = new URL(canonical, request.url);
+    url.searchParams.forEach((v, k) => target.searchParams.set(k, v));
+    return Response.redirect(target.toString(), 301);
+  }
+
   const providedPassword = url.searchParams.get('password');
 
   // 如果带密码参数，不缓存
@@ -314,17 +335,17 @@ async function handlePostPage(request, env, path, ctx) {
 async function renderPostPage(request, env, id, providedPassword, ctx) {
   const settings = await getSettings(env);
 
+  // 前台只展示已发布文章；兼容旧版本/WordPress 导入遗留的 'publish' 状态值，
+  // 草稿（draft）与回收站（trash）仍然严格不可见
   const post = await env.DB.prepare(
-    "SELECT * FROM posts WHERE id=? AND status='published'"
+    "SELECT * FROM posts WHERE id=? AND status IN ('published','publish')"
   ).bind(id).first();
 
   if (!post) {
-    return html('文章不存在', 404);
-  }
-
-  // 异步累加浏览次数（不阻塞响应）
-  if (ctx) {
-    ctx.waitUntil(env.DB.prepare("UPDATE posts SET view_count = view_count + 1 WHERE id=?").bind(id).run());
+    // 404 不缓存：避免文章发布后旧 404 仍被缓存
+    const notFound = html('文章不存在', 404);
+    notFound.headers.set('Cache-Control', 'no-store');
+    return notFound;
   }
 
   // 检查密码保护

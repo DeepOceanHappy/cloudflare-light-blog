@@ -3,7 +3,8 @@
 import { json, errorResponse, generateSlug, deriveHMACKey, escapeHtml } from './lib/utils.js';
 import { generateToken, authenticateRequest, hashPassword, verifyPasswordHash } from './lib/auth.js';
 import { getSettings, saveSettings } from './lib/db.js';
-import { handleUpload } from './lib/image.js';
+import { handleUpload, listImages } from './lib/image.js';
+import { generateAgentKey } from './lib/agent-auth.js';
 import { purgeCache } from './lib/cache.js';
 
 // ==================== 常量 ====================
@@ -87,7 +88,7 @@ export async function handleAPI(request, env, path) {
           return json({ success: false, error: '密码错误次数过多，请 1 小时后再试' }, 429);
         }
 
-        const post = await env.DB.prepare("SELECT password FROM posts WHERE id=? AND status='published'").bind(postId).first();
+        const post = await env.DB.prepare("SELECT password FROM posts WHERE id=? AND status IN ('published','publish')").bind(postId).first();
         if (!post) return json({ success: false, error: '文章不存在' }, 404);
         if (await verifyPasswordHash(password, post.password)) {
           await clearRateLimit(env, rateKey);
@@ -262,6 +263,28 @@ export async function handleAPI(request, env, path) {
       return handleDeleteImage(request, env);
     }
 
+    // 图片管理（列表：含文章封面图；删除：按 key 删除存储桶对象）
+    if (path === '/api/admin/images' && method === 'GET') {
+      return handleListImagesAdmin(env);
+    }
+    if (path === '/api/admin/images' && method === 'DELETE') {
+      return handleDeleteImageAdmin(request, env);
+    }
+
+    // Agent 密钥管理（MCP 接入）
+    if (path === '/api/admin/agent-keys' && method === 'GET') {
+      return handleListAgentKeys(env);
+    }
+    if (path === '/api/admin/agent-keys' && method === 'POST') {
+      return handleCreateAgentKey(request, env);
+    }
+    if (path === '/api/admin/agent-keys/reset' && method === 'POST') {
+      return handleResetAgentKey(request, env);
+    }
+    if (path === '/api/admin/agent-keys' && method === 'DELETE') {
+      return handleRevokeAgentKey(request, env);
+    }
+
     return errorResponse('未找到接口', 404);
   } catch (e) {
     return errorResponse('服务器错误', 500, e);
@@ -280,7 +303,7 @@ async function handleGetPosts(request, env) {
   const limit = Math.min(50, Math.max(1, parseInt(url.searchParams.get('limit')) || 10));
   const offset = (page - 1) * limit;
 
-  let where = "WHERE status='published'";
+  let where = "WHERE status IN ('published','publish')";
   const params = [];
 
   if (category) {
@@ -300,7 +323,7 @@ async function handleGetPosts(request, env) {
 
   // 获取分页数据（密码哈希不对外返回，受保护文章的摘要也不对外泄露）
   const { results } = await env.DB.prepare(
-    `SELECT id, title, slug, excerpt, cover_image, category, tags, view_count, created_at, password FROM posts ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    `SELECT id, title, slug, excerpt, cover_image, category, tags, created_at, published_at, password FROM posts ${where} ORDER BY published_at DESC LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all();
   const data = (results || []).map(p => {
     const { password, ...rest } = p;
@@ -395,10 +418,10 @@ async function handleProxyCss(request) {
  */
 async function handleGetStats(env) {
   const [postCount, catCount, tagCount, latestPost] = await Promise.all([
-    env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE status='published'").first(),
+    env.DB.prepare("SELECT COUNT(*) as cnt FROM posts WHERE status IN ('published','publish')").first(),
     env.DB.prepare("SELECT COUNT(*) as cnt FROM categories").first(),
-    env.DB.prepare("SELECT tags FROM posts WHERE status='published' AND tags IS NOT NULL AND tags != ''").all(),
-    env.DB.prepare("SELECT created_at FROM posts WHERE status='published' ORDER BY created_at DESC LIMIT 1").first()
+    env.DB.prepare("SELECT tags FROM posts WHERE status IN ('published','publish') AND tags IS NOT NULL AND tags != ''").all(),
+    env.DB.prepare("SELECT created_at FROM posts WHERE status IN ('published','publish') ORDER BY created_at DESC LIMIT 1").first()
   ]);
 
   // 统计去重标签数
@@ -466,7 +489,7 @@ async function handleGetRelatedPosts(request, env) {
     const { results } = await env.DB.prepare(
       `SELECT id, title, cover_image, category, tags, created_at
        FROM posts
-       WHERE status='published' AND id != ? AND (password IS NULL OR password='') AND (${conditions})
+       WHERE status IN ('published','publish') AND id != ? AND (password IS NULL OR password='') AND (${conditions})
        ORDER BY RANDOM()
        LIMIT 4`
     ).bind(postId, ...params).all();
@@ -497,16 +520,14 @@ async function handleSitemap(request, env) {
   const baseUrl = `${url.protocol}//${url.host}`;
 
   const [postsResult, categoriesResult] = await Promise.all([
-    env.DB.prepare("SELECT id, created_at, updated_at FROM posts WHERE status='published' ORDER BY updated_at DESC").all(),
+    env.DB.prepare("SELECT id, created_at, published_at, updated_at FROM posts WHERE status IN ('published','publish') ORDER BY updated_at DESC").all(),
     env.DB.prepare("SELECT slug, name FROM categories").all()
   ]);
 
   // 文章页
   const postUrls = (postsResult.results || []).map(p => {
-    const d = new Date(p.created_at);
-    const ym = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
     return `  <url>
-    <loc>${baseUrl}/post/${ym}/${p.id}</loc>
+    <loc>${baseUrl}/post/${p.id}</loc>
     <lastmod>${p.updated_at}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
@@ -549,20 +570,18 @@ async function handleRSS(request, env) {
   const siteDesc = settings.site_description || '';
 
   const { results } = await env.DB.prepare(
-    "SELECT id, title, excerpt, content, created_at, updated_at, cover_image FROM posts WHERE status='published' ORDER BY created_at DESC LIMIT 20"
+    "SELECT id, title, excerpt, content, created_at, published_at, updated_at, cover_image FROM posts WHERE status IN ('published','publish') ORDER BY published_at DESC LIMIT 20"
   ).all();
 
   const items = (results || []).map(p => {
-    const d = new Date(p.created_at);
-    const ym = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0');
-    const link = `${baseUrl}/post/${ym}/${p.id}`;
+    const link = `${baseUrl}/post/${p.id}`;
     const desc = p.excerpt || (p.content ? p.content.substring(0, 200).split('#').join('').split('*').join('').split('\n').join(' ').trim() : '');
     return `  <item>
     <title>${escapeHtml(p.title)}</title>
     <link>${link}</link>
     <guid isPermaLink="true">${link}</guid>
     <description>${escapeHtml(desc)}</description>
-    <pubDate>${new Date(p.created_at).toUTCString()}</pubDate>
+    <pubDate>${new Date(p.published_at || p.created_at).toUTCString()}</pubDate>
   </item>`;
   }).join('\n');
 
@@ -739,7 +758,7 @@ async function handleDeleteCategory(request, env) {
 const SETTINGS_WHITELIST = [
   'site_name', 'site_description', 'site_bio', 'site_author', 'site_created_at',
   'site_footer', 'custom_js', 'iconfont_css', 'site_links', 'links_title',
-  'site_theme', 'enable_tag_cloud', 'profile_position', 'tag_cloud_position',
+  'site_theme', 'enable_tag_cloud', 'enable_post_toc', 'enable_mcp', 'profile_position', 'tag_cloud_position',
   'pinned_post_id', 'copyright_notice', 'ad_content', 'ad_position',
   'allow_robots', 'enable_compression', 'allowed_origins', 'site_password'
 ];
@@ -786,6 +805,116 @@ async function handleDeleteImage(request, env) {
   } catch (e) {
     console.error('[API] 删除图片失败:', e);
     return json({ success: false, error: '删除图片失败: ' + e.message }, 500);
+  }
+}
+
+/**
+ * 图片管理：列出 R2 存储桶中的全部图片（含文章封面图）
+ */
+async function handleListImagesAdmin(env) {
+  try {
+    const { configured, images } = await listImages(env);
+    return json({ configured, images });
+  } catch (e) {
+    console.error('[API] 列出图片失败:', e);
+    return json({ configured: false, images: [], error: '列出图片失败' }, 500);
+  }
+}
+
+/**
+ * 图片管理：按存储键删除图片（?key=文件名）
+ */
+async function handleDeleteImageAdmin(request, env) {
+  try {
+    const url = new URL(request.url);
+    const key = (url.searchParams.get('key') || '').trim();
+    if (!key) return json({ success: false, error: '缺少图片名称' }, 400);
+
+    if (!env.R2) return json({ success: true, message: '未配置存储桶' });
+
+    // 校验文件名（防止路径遍历 + 非法字符）
+    const SAFE_FILENAME = /^[a-zA-Z0-9_-]{1,64}\.(jpg|jpeg|png|gif|webp|svg|ico|x-icon|avif|bmp|tiff)$/;
+    if (!SAFE_FILENAME.test(key)) {
+      return json({ success: false, error: '无效的文件名' }, 400);
+    }
+
+    await env.R2.delete(key);
+    return json({ success: true, message: '图片已删除' });
+  } catch (e) {
+    console.error('[API] 删除图片失败:', e);
+    return json({ success: false, error: '删除图片失败: ' + e.message }, 500);
+  }
+}
+
+// ==================== Agent 密钥管理（MCP 接入） ====================
+
+const AGENT_KEY_MAX = 2; // 最多 2 个密钥
+
+async function handleListAgentKeys(env) {
+  try {
+    const { results } = await env.DB.prepare(
+      'SELECT id, name, permissions, key, created_at FROM agent_keys ORDER BY id'
+    ).all();
+    return json(results || []);
+  } catch (e) {
+    console.error('[API] 列出密钥失败:', e);
+    return json([], 500);
+  }
+}
+
+async function handleCreateAgentKey(request, env) {
+  try {
+    const body = await request.json();
+    const perms = Array.isArray(body.permissions)
+      ? body.permissions.filter((p) => p === 'read' || p === 'write')
+      : [];
+    if (perms.length === 0) return json({ success: false, error: '请至少勾选一项权限（读/写）' }, 400);
+
+    const count = await env.DB.prepare('SELECT COUNT(*) as cnt FROM agent_keys').first();
+    if (count && count.cnt >= AGENT_KEY_MAX) {
+      return json({ success: false, error: '最多只能生成 ' + AGENT_KEY_MAX + ' 个密钥' }, 400);
+    }
+
+    const key = generateAgentKey();
+    const now = new Date().toISOString();
+    const name = String(body.name || '').trim() || ('密钥 ' + ((count && count.cnt) + 1));
+    const r = await env.DB.prepare('INSERT INTO agent_keys (name, permissions, key, created_at) VALUES (?,?,?,?)')
+      .bind(name, perms.join(','), key, now).run();
+
+    return json({ success: true, id: r.meta && r.meta.last_row_id, key });
+  } catch (e) {
+    console.error('[API] 生成密钥失败:', e);
+    return json({ success: false, error: '生成密钥失败: ' + e.message }, 500);
+  }
+}
+
+async function handleResetAgentKey(request, env) {
+  try {
+    const body = await request.json();
+    if (!body.id) return json({ success: false, error: '缺少 id' }, 400);
+
+    const existing = await env.DB.prepare('SELECT id FROM agent_keys WHERE id=?').bind(body.id).first();
+    if (!existing) return json({ success: false, error: '密钥不存在' }, 404);
+
+    const key = generateAgentKey();
+    await env.DB.prepare('UPDATE agent_keys SET key=?, created_at=? WHERE id=?')
+      .bind(key, new Date().toISOString(), body.id).run();
+    return json({ success: true, id: body.id, key });
+  } catch (e) {
+    console.error('[API] 重置密钥失败:', e);
+    return json({ success: false, error: '重置密钥失败: ' + e.message }, 500);
+  }
+}
+
+async function handleRevokeAgentKey(request, env) {
+  try {
+    const id = new URL(request.url).searchParams.get('id');
+    if (!id) return json({ success: false, error: '缺少 id' }, 400);
+    await env.DB.prepare('DELETE FROM agent_keys WHERE id=?').bind(id).run();
+    return json({ success: true, message: '密钥已吊销' });
+  } catch (e) {
+    console.error('[API] 吊销密钥失败:', e);
+    return json({ success: false, error: '吊销密钥失败: ' + e.message }, 500);
   }
 }
 
@@ -929,7 +1058,7 @@ async function handleImportWordPress(request, env) {
 async function handleGetTags(env) {
   try {
     const { results } = await env.DB.prepare(
-      "SELECT tags FROM posts WHERE status='published' AND (password IS NULL OR password='') AND tags IS NOT NULL AND tags != ''"
+      "SELECT tags FROM posts WHERE status IN ('published','publish') AND (password IS NULL OR password='') AND tags IS NOT NULL AND tags != ''"
     ).all();
 
     const tagMap = {};

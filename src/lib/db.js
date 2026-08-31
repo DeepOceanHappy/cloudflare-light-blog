@@ -100,6 +100,35 @@ export async function initDB(env) {
       `).run();
     }
 
+    // ========== 3.1 创建 agent_keys 表（MCP/Agent 密钥）==========
+    if (!(await tableExists(DB, 'agent_keys'))) {
+      await DB.prepare(`
+        CREATE TABLE agent_keys (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT DEFAULT '',
+          permissions TEXT DEFAULT 'read',
+          key TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        )
+      `).run();
+      console.log('[DB] 创建 agent_keys 表');
+    }
+
+    // ========== 3.2 创建 agent_logs 表（Agent 操作审计）==========
+    if (!(await tableExists(DB, 'agent_logs'))) {
+      await DB.prepare(`
+        CREATE TABLE agent_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          key_id INTEGER,
+          tool TEXT DEFAULT '',
+          args TEXT DEFAULT '',
+          result TEXT DEFAULT '',
+          created_at TEXT NOT NULL
+        )
+      `).run();
+      console.log('[DB] 创建 agent_logs 表');
+    }
+
     // ========== 4. 创建索引 ==========
     try {
       await DB.prepare("CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)").run();
@@ -125,6 +154,8 @@ export async function initDB(env) {
       ['site_created_at', ''],
       ['site_theme', 'animal-forest'],
       ['enable_tag_cloud', '1'],
+      ['enable_post_toc', '1'],
+      ['enable_mcp', '0'],
       ['profile_position', 'left'],
       ['tag_cloud_position', 'left'],
       ['pinned_post_id', ''],
@@ -207,6 +238,8 @@ export async function getSettings(env) {
     links_title: '友链',
     site_theme: 'animal-forest',
     enable_tag_cloud: '1',
+    enable_post_toc: '1',
+    enable_mcp: '0',
     profile_position: 'left',
     tag_cloud_position: 'left',
     pinned_post_id: '',
