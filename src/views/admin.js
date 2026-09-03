@@ -10,8 +10,8 @@ export function getAdminHTML() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>博客管理后台</title>
   <link rel="icon" href="/icon/favicon.ico">
-  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.27/vue.global.prod.min.js" crossorigin="anonymous"><\/script>
-  <script src="https://cdn.bootcdn.net/ajax/libs/axios/1.7.2/axios.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.27/vue.global.prod.min.js" crossorigin="anonymous"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.7.2/axios.min.js" crossorigin="anonymous"><\/script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
